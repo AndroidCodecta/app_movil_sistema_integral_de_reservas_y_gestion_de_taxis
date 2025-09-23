@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/app_movil_sistema_integral_de_reservas_y_gestion_de_taxis.iml" filepath="$PROJECT_DIR$/app_movil_sistema_integral_de_reservas_y_gestion_de_taxis.iml" />
+      <module fileurl="file://$PROJECT_DIR$/android/app_movil_sistema_integral_de_reservas_y_gestion_de_taxis_android.iml" filepath="$PROJECT_DIR$/android/app_movil_sistema_integral_de_reservas_y_gestion_de_taxis_android.iml" />
+    </modules>
+  </component>
+</project>
