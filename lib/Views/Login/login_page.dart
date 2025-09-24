@@ -27,9 +27,10 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  Future<void> _saveToken(String token) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString("auth_token", token);
+  Future<void> _saveSession(String token, int userId) async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setString("auth_token", token);
+  await prefs.setInt("user_id", userId);
   }
 
   Future<void> _handleLogin() async {
@@ -54,20 +55,25 @@ class _LoginPageState extends State<LoginPage> {
           if (data["success"] == true) {
             final token = data["token"];
             final user = data["user"];
-            final reservas = data["reservas"] ?? [];
+            final userId = user["id"];
+            final reservas = data["reservas_dia"] ?? [];
             final solicitudes = data["solicitudes"] ?? [];
 
-            await _saveToken(token);
+            // Guardar sesión
+            await _saveSession(token, userId);
 
             print("TOKEN: $token");
             print("Usuario: ${user["name"]}");
+            print("User ID: $userId");
             print("Reservas: $reservas");
             print("Solicitudes: $solicitudes");
 
+            // Feedback al usuario
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text("Inicio de sesión exitoso")),
             );
 
+            // Ir al home
             Navigator.pushReplacementNamed(context, '/home');
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -75,7 +81,6 @@ class _LoginPageState extends State<LoginPage> {
             );
           }
         } else if (response.statusCode == 404) {
-          // Backend devuelve success pero data vacío
           final data = jsonDecode(response.body);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(

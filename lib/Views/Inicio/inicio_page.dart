@@ -1,4 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+
 import '../Reservas/reservas_detalle.dart';
 import '../Reservas/reservas_page.dart';
 import '../widgets/header.dart';
@@ -90,8 +94,9 @@ class StatusButtons extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        // Activo - botón interactivo sin navegación
-        AnimatedActiveButton(),
+
+        // Estado del chofer desde API
+        const EstadoChoferButton(),
         const SizedBox(height: 8),
 
         // Resumen de hoy - botón navegable
@@ -128,38 +133,105 @@ class StatusButtons extends StatelessWidget {
   }
 }
 
-// Botón animado para estado activo/inactivo
-class AnimatedActiveButton extends StatefulWidget {
-  const AnimatedActiveButton({super.key});
+/// 🔹 Botón animado que consulta la API de estado del chofer
+class EstadoChoferButton extends StatefulWidget {
+  const EstadoChoferButton({super.key});
 
   @override
-  State<AnimatedActiveButton> createState() => _AnimatedActiveButtonState();
+  State<EstadoChoferButton> createState() => _EstadoChoferButtonState();
 }
 
-class _AnimatedActiveButtonState extends State<AnimatedActiveButton> {
-  bool activo = true;
+class _EstadoChoferButtonState extends State<EstadoChoferButton> {
+  bool? activo; // null => cargando
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchEstado();
+  }
+
+  Future<void> _fetchEstado() async {
+    setState(() => _isLoading = true);
+
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString("auth_token");
+    final userId = prefs.getInt("user_id");
+
+    if (token == null || userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("No hay sesión iniciada")),
+      );
+      return;
+    }
+
+    final url =
+        Uri.parse("http://servidorcorman.dyndns.org:7019/api/chofer/estado");
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $token",
+        },
+        body: jsonEncode({"id_user": userId}),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final estado = data["data"]?["estado"];
+        setState(() => activo = estado == 1);
+      } else if (response.statusCode == 404) {
+        setState(() => activo = false); 
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "Error ${response.statusCode}: no se pudo obtener estado",
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error de conexión: $e")),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  void _toggleEstado() {
+    if (activo != null) {
+      setState(() {
+        activo = !activo!;
+      });
+
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const CircularProgressIndicator();
+    }
+
     return GestureDetector(
-      onTap: () {
-        setState(() {
-          activo = !activo;
-        });
-      },
+      onTap: _toggleEstado,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
         width: 200,
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: activo
+          color: activo == true
               ? const Color.fromARGB(255, 104, 230, 119)
               : Colors.redAccent,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Text(
-          activo ? 'Activo' : 'Inactivo',
+          activo == true ? 'Activo' : 'Inactivo',
           textAlign: TextAlign.center,
           style: const TextStyle(
             color: Colors.black,
