@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../widgets/header.dart';
 import 'forgot_password_page.dart';
 
@@ -23,18 +27,78 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  void _handleLogin() async {
+  Future<void> _saveToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString("auth_token", token);
+  }
+
+  Future<void> _handleLogin() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
-      await Future.delayed(const Duration(seconds: 1));
-      setState(() => _isLoading = false);
-      if (_emailController.text == 'demo@correo.com' &&
-          _passwordController.text == 'demo1234') {
-        Navigator.pushReplacementNamed(context, '/home');
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Usuario o contraseña incorrectos')),
+
+      final url = Uri.parse("http://servidorcorman.dyndns.org:7019/api/login_movil");
+
+      try {
+        final response = await http.post(
+          url,
+          headers: {"Content-Type": "application/json"},
+          body: jsonEncode({
+            "email": _emailController.text.trim(),
+            "password": _passwordController.text.trim(),
+          }),
         );
+
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+
+          if (data["success"] == true) {
+            final token = data["token"];
+            final user = data["user"];
+            final reservas = data["reservas"] ?? [];
+            final solicitudes = data["solicitudes"] ?? [];
+
+            await _saveToken(token);
+
+            print("TOKEN: $token");
+            print("Usuario: ${user["name"]}");
+            print("Reservas: $reservas");
+            print("Solicitudes: $solicitudes");
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("Inicio de sesión exitoso")),
+            );
+
+            Navigator.pushReplacementNamed(context, '/home');
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("Credenciales incorrectas")),
+            );
+          }
+        } else if (response.statusCode == 404) {
+          // Backend devuelve success pero data vacío
+          final data = jsonDecode(response.body);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                "Sin resultados: ${data["data"] ?? "ningún registro encontrado"}",
+              ),
+            ),
+          );
+        } else if (response.statusCode == 500) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Error en el servidor (500)")),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Error inesperado: ${response.statusCode}")),
+          );
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error de conexión: $e")),
+        );
+      } finally {
+        setState(() => _isLoading = false);
       }
     }
   }
@@ -81,96 +145,35 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                       ),
-
                       const SizedBox(height: 24),
 
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.amber,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 4,
-                        ),
-                        child: const Text(
-                          'Correo electrónico',
-                          style: TextStyle(
-                            color: Colors.black,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
+                      // Campo email
+                      _buildLabel("Correo electrónico"),
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
-                        decoration: InputDecoration(
-                          hintText: 'Ingrese su correo electrónico',
-                          hintStyle: TextStyle(color: Colors.grey[600]),
-                          filled: true,
-                          fillColor: Colors.white,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide.none,
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 16,
-                          ),
-                        ),
+                        decoration: _inputDecoration("Ingrese su correo electrónico"),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
                             return 'Por favor ingrese su correo electrónico';
                           }
-                          if (!RegExp(
-                            r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-                          ).hasMatch(value)) {
-                            return 'Ingrese un correo electrónico válido';
+                          if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+                              .hasMatch(value)) {
+                            return 'Ingrese un correo válido';
                           }
                           return null;
                         },
                       ),
-
                       const SizedBox(height: 24),
 
-                      // Etiqueta contraseña
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.amber,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 4,
-                        ),
-                        child: const Text(
-                          'Contraseña',
-                          style: TextStyle(
-                            color: Colors.black,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
+                      // Campo password
+                      _buildLabel("Contraseña"),
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: _passwordController,
                         obscureText: _obscurePassword,
-                        decoration: InputDecoration(
-                          hintText: 'Ingrese su contraseña',
-                          hintStyle: TextStyle(color: Colors.grey[600]),
-                          filled: true,
-                          fillColor: Colors.white,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide.none,
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 16,
-                          ),
+                        decoration: _inputDecoration("Ingrese su contraseña").copyWith(
                           suffixIcon: IconButton(
                             icon: Icon(
                               _obscurePassword
@@ -189,13 +192,12 @@ class _LoginPageState extends State<LoginPage> {
                           if (value == null || value.isEmpty) {
                             return 'Por favor ingrese su contraseña';
                           }
-                          if (value.length < 6) {
-                            return 'La contraseña debe tener al menos 6 caracteres';
+                          if (value.length < 3) {
+                            return 'La contraseña debe tener al menos 3 caracteres';
                           }
                           return null;
                         },
                       ),
-
                       const SizedBox(height: 32),
 
                       // Botón iniciar sesión
@@ -229,7 +231,6 @@ class _LoginPageState extends State<LoginPage> {
                                 ),
                         ),
                       ),
-
                       const SizedBox(height: 24),
 
                       // Enlace "¿Olvidaste tu cuenta?"
@@ -254,6 +255,38 @@ class _LoginPageState extends State<LoginPage> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildLabel(String text) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.amber,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Colors.black,
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+
+  InputDecoration _inputDecoration(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: TextStyle(color: Colors.grey[600]),
+      filled: true,
+      fillColor: Colors.white,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide.none,
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
     );
   }
 }

@@ -1,4 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="app_movil_sistema_integral_de_reservas_y_gestion_de_taxis"
         android:name="${applicationName}"
