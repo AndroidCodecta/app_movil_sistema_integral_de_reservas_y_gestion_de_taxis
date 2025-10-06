@@ -22,16 +22,16 @@ class CustomBottomNavBar extends StatelessWidget {
         onTap: (index) {
           switch (index) {
             case 0:
-              Navigator.pushNamed(context, '/home');
+              Navigator.pushReplacementNamed(context, '/home');
               break;
             case 1:
-              Navigator.pushNamed(context, '/reservas');
+              Navigator.pushReplacementNamed(context, '/reservas');
               break;
             case 2:
-              Navigator.pushNamed(context, '/chat_users');
+              Navigator.pushReplacementNamed(context, '/chat_users');
               break;
             case 3:
-              Navigator.pushNamed(context, '/solicitudes');
+              Navigator.pushReplacementNamed(context, '/solicitudes');
               break;
           }
         },

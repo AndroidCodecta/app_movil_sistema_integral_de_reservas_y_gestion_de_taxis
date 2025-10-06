@@ -2,36 +2,41 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
-
+import '../../Utils/session_manager.dart';
 import '../Reservas/reservas_detalle.dart';
 import '../Reservas/reservas_page.dart';
 import '../widgets/header.dart';
 import '../widgets/bottom_navigation.dart';
 
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+class HomeScreen extends StatefulWidget {
+  final List reservas;
 
-  // Datos de prueba
-  static final List<ReservaDetalle> reservasPrueba = [
-    ReservaDetalle(
-      cliente: "Jorge Alberto González Heredia",
-      fechaReserva: "28/08/2025",
-      horaRecogida: "2:00 PM",
-      direccionEncuentro: "Campoy, San Juan de Lurigancho, Perú",
-    ),
-    ReservaDetalle(
-      cliente: "Jorge Alberto González Heredia",
-      fechaReserva: "28/08/2025",
-      horaRecogida: "2:00 PM",
-      direccionEncuentro: "Campoy, San Juan de Lurigancho, Perú",
-    ),
-    ReservaDetalle(
-      cliente: "Jorge Alberto González Heredia",
-      fechaReserva: "28/08/2025",
-      horaRecogida: "2:00 PM",
-      direccionEncuentro: "Campoy, San Juan de Lurigancho, Perú",
-    ),
-  ];
+  const HomeScreen({
+    super.key,
+    required this.reservas,
+  });
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  List reservas = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDataFromPrefs();
+  }
+
+  Future<void> _loadDataFromPrefs() async {
+    final reservasData = await SessionManager.getReservas();
+    setState(() {
+      reservas = reservasData;
+      _isLoading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -40,21 +45,71 @@ class HomeScreen extends StatelessWidget {
       body: Column(
         children: [
           const LogoHeader(titulo: 'Inicio', estiloLogin: false),
-
-          // Contenido principal
           Expanded(
-            child: SingleChildScrollView(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : SingleChildScrollView(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 children: [
-                  // Botones de estado
                   const StatusButtons(),
                   const SizedBox(height: 16),
-
-                  // Lista de reservas con datos de prueba
-                  ...reservasPrueba.map(
-                    (reserva) => ReservaCard(reserva: reserva),
-                  ),
+                  if (reservas.isEmpty ||
+                      reservas
+                          .where((r) =>
+                      r != null &&
+                          r is Map &&
+                          r.isNotEmpty)
+                          .isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withOpacity(0.2),
+                            spreadRadius: 1,
+                            blurRadius: 3,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Center(
+                        child: Text(
+                          "No tienes reservas por el momento 🚗",
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    ...reservas
+                        .where((r) =>
+                    r != null && r is Map && r.isNotEmpty)
+                        .map((r) {
+                      final cliente = r["cliente"] ?? {};
+                      final reserva = ReservaDetalle(
+                        cliente:
+                        "${cliente["nombres"] ?? ""} ${cliente["apellidos"] ?? ""}".trim(),
+                        fechaReserva: (r["fecha_hora"] ?? "")
+                            .toString()
+                            .split(" ")[0],
+                        horaRecogida: (r["fecha_hora"] ?? "")
+                            .toString()
+                            .split(" ")
+                            .length >
+                            1
+                            ? r["fecha_hora"].split(" ")[1]
+                            : "",
+                        direccionEncuentro: r["d_encuentro"] ?? "",
+                      );
+                      return ReservaCard(reserva: reserva);
+                    }).toList(),
                 ],
               ),
             ),
@@ -94,12 +149,8 @@ class StatusButtons extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-
-        // Estado del chofer desde API
         const EstadoChoferButton(),
         const SizedBox(height: 8),
-
-        // Resumen de hoy - botón navegable
         GestureDetector(
           onTap: () {
             Navigator.push(
@@ -133,7 +184,6 @@ class StatusButtons extends StatelessWidget {
   }
 }
 
-/// 🔹 Botón animado que consulta la API de estado del chofer
 class EstadoChoferButton extends StatefulWidget {
   const EstadoChoferButton({super.key});
 
@@ -142,7 +192,7 @@ class EstadoChoferButton extends StatefulWidget {
 }
 
 class _EstadoChoferButtonState extends State<EstadoChoferButton> {
-  bool? activo; // null => cargando
+  bool? activo;
   bool _isLoading = false;
 
   @override
@@ -159,14 +209,15 @@ class _EstadoChoferButtonState extends State<EstadoChoferButton> {
     final userId = prefs.getInt("user_id");
 
     if (token == null || userId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("No hay sesión iniciada")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("No hay sesión iniciada")));
       return;
     }
 
-    final url =
-        Uri.parse("http://servidorcorman.dyndns.org:7019/api/chofer/estado");
+    final url = Uri.parse(
+      "http://servidorcorman.dyndns.org:7019/api/chofer/estado",
+    );
 
     try {
       final response = await http.post(
@@ -183,7 +234,7 @@ class _EstadoChoferButtonState extends State<EstadoChoferButton> {
         final estado = data["data"]?["estado"];
         setState(() => activo = estado == 1);
       } else if (response.statusCode == 404) {
-        setState(() => activo = false); 
+        setState(() => activo = false);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -194,9 +245,9 @@ class _EstadoChoferButtonState extends State<EstadoChoferButton> {
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error de conexión: $e")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Error de conexión: $e")));
     } finally {
       setState(() => _isLoading = false);
     }
@@ -207,14 +258,8 @@ class _EstadoChoferButtonState extends State<EstadoChoferButton> {
       setState(() {
         activo = !activo!;
       });
-
     }
   }
-
-
-
-
-  
 
   @override
   Widget build(BuildContext context) {
@@ -249,7 +294,6 @@ class _EstadoChoferButtonState extends State<EstadoChoferButton> {
   }
 }
 
-// Widget para cada card de reserva (solo UI)
 class ReservaCard extends StatelessWidget {
   final ReservaDetalle reserva;
 
@@ -283,7 +327,6 @@ class ReservaCard extends StatelessWidget {
         ),
         child: Column(
           children: [
-            // Header de Auto y Reserva
             Row(
               children: [
                 Expanded(
@@ -326,7 +369,6 @@ class ReservaCard extends StatelessWidget {
                 ),
               ],
             ),
-
             Padding(
               padding: const EdgeInsets.all(16),
               child: Row(
@@ -352,33 +394,39 @@ class ReservaCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: const [
                           Text(
-                            'Placa: ABC-123',
-                            style: TextStyle(fontSize: 10, color: Colors.grey),
+                            'Placa: -',
+                            style:
+                            TextStyle(fontSize: 10, color: Colors.grey),
                           ),
                           Text(
-                            'Marca: Mazda',
-                            style: TextStyle(fontSize: 10, color: Colors.grey),
+                            'Marca: -',
+                            style:
+                            TextStyle(fontSize: 10, color: Colors.grey),
                           ),
                           Text(
-                            'Modelo: CX-5',
-                            style: TextStyle(fontSize: 10, color: Colors.grey),
+                            'Modelo: -',
+                            style:
+                            TextStyle(fontSize: 10, color: Colors.grey),
+                          ),
+                          Text(
+                            'Toca para ver más detalles',
+                            style: TextStyle(
+                                fontSize: 10, color: Colors.blueGrey),
                           ),
                         ],
                       ),
                     ],
                   ),
                   const SizedBox(width: 16),
-                  // Información de la reserva
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _buildInfoRow('Cliente:', reserva.cliente),
                         _buildInfoRow(
-                          'Fecha de reserva:',
-                          reserva.fechaReserva,
-                        ),
-                        _buildInfoRow('Hora Recogida:', reserva.horaRecogida),
+                            'Fecha de reserva:', reserva.fechaReserva),
+                        _buildInfoRow(
+                            'Hora Recogida:', reserva.horaRecogida),
                         _buildInfoRow(
                           'Dirección de encuentro:',
                           reserva.direccionEncuentro,

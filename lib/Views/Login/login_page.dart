@@ -1,8 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
 
+import '../Inicio/inicio_page.dart';
+import '/utils/session_manager.dart';
 import '../widgets/header.dart';
 import 'forgot_password_page.dart';
 
@@ -27,12 +28,6 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  Future<void> _saveSession(String token, int userId) async {
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.setString("auth_token", token);
-  await prefs.setInt("user_id", userId);
-  }
-
   Future<void> _handleLogin() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
@@ -54,27 +49,38 @@ class _LoginPageState extends State<LoginPage> {
 
           if (data["success"] == true) {
             final token = data["token"];
-            final user = data["user"];
-            final userId = user["id"];
-            final reservas = data["reservas_dia"] ?? [];
-            final solicitudes = data["solicitudes"] ?? [];
+            final user = data["user"] ?? {};
+            final userId = user["id"] ?? 0;
 
-            // Guardar sesión
-            await _saveSession(token, userId);
+            final reservasData = data["reservas_dia"];
+            final reservas = reservasData is List
+                ? reservasData
+                : (reservasData is Map ? [reservasData] : []);
 
-            print("TOKEN: $token");
-            print("Usuario: ${user["name"]}");
-            print("User ID: $userId");
-            print("Reservas: $reservas");
-            print("Solicitudes: $solicitudes");
+            final solicitudesData = data["solicitudes"];
+            final solicitudes = solicitudesData is List
+                ? solicitudesData
+                : (solicitudesData is Map ? [solicitudesData] : []);
 
-            // Feedback al usuario
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Inicio de sesión exitoso")),
+            // 🔹 Guardar en SessionManager
+            await SessionManager.saveSession(
+              token: token,
+              userId: userId,
+              user: user,
+              reservas: reservas,
+              solicitudes: solicitudes,
             );
 
-            // Ir al home
-            Navigator.pushReplacementNamed(context, '/home');
+            // 🔹 Navegar a HomeScreen
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => HomeScreen(
+                  reservas: reservas,
+                  //solicitudes: solicitudes,
+                ),
+              ),
+            );
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text("Credenciales incorrectas")),
@@ -83,11 +89,7 @@ class _LoginPageState extends State<LoginPage> {
         } else if (response.statusCode == 404) {
           final data = jsonDecode(response.body);
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                "Sin resultados: ${data["data"] ?? "ningún registro encontrado"}",
-              ),
-            ),
+            SnackBar(content: Text("Sin resultados: ${data["data"] ?? "ningún registro encontrado"}")),
           );
         } else if (response.statusCode == 500) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -151,8 +153,6 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
                       const SizedBox(height: 24),
-
-                      // Campo email
                       _buildLabel("Correo electrónico"),
                       const SizedBox(height: 8),
                       TextFormField(
@@ -171,8 +171,6 @@ class _LoginPageState extends State<LoginPage> {
                         },
                       ),
                       const SizedBox(height: 24),
-
-                      // Campo password
                       _buildLabel("Contraseña"),
                       const SizedBox(height: 8),
                       TextFormField(
@@ -204,8 +202,6 @@ class _LoginPageState extends State<LoginPage> {
                         },
                       ),
                       const SizedBox(height: 32),
-
-                      // Botón iniciar sesión
                       SizedBox(
                         height: 50,
                         child: ElevatedButton(
@@ -220,25 +216,23 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                           child: _isLoading
                               ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                    strokeWidth: 2,
-                                  ),
-                                )
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
                               : const Text(
-                                  'Iniciar sesión',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
+                            'Iniciar sesión',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 24),
-
-                      // Enlace "¿Olvidaste tu cuenta?"
                       Center(
                         child: TextButton(
                           onPressed: _forgotPassword,

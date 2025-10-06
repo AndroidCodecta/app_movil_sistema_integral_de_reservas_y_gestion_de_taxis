@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../widgets/header.dart';
 import '../widgets/bottom_navigation.dart';
 
-// Modelo simple para datos de reserva
 class ReservaDetalle {
   final String cliente;
   final String fechaReserva;

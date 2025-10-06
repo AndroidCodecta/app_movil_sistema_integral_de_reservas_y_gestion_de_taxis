@@ -100,7 +100,7 @@ class ReservaDetalleCompletoScreen extends StatelessWidget {
                               Row(
                                 children: [
                                   Image.network(
-                                    'https://www.mazda.pe/assets/img/cars/cx-5/mazda-cx-5-2022.png',
+                                    'https://www.shutterstock.com/image-vector/car-icon-48x48-perfect-pixel-260nw-1171602043.jpg',
                                     width: 80,
                                     height: 50,
                                     fit: BoxFit.cover,
