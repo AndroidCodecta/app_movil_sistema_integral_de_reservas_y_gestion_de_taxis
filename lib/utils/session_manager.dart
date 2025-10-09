@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SessionManager {
-
   static Future<void> saveSession({
     required String token,
     required int userId,
@@ -47,32 +46,68 @@ class SessionManager {
     final prefs = await SharedPreferences.getInstance();
     final reservasJson = prefs.getString("reservas_dia");
     if (reservasJson == null) return [];
-    final decoded = jsonDecode(reservasJson);
-    if (decoded is List) {
-      return decoded
-          .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
-          .toList();
-    }
-    return [];
+    return _decodeJsonToList(reservasJson);
   }
 
   static Future<List<Map<String, dynamic>>> getSolicitudes() async {
     final prefs = await SharedPreferences.getInstance();
     final solicitudesJson = prefs.getString("solicitudes");
     if (solicitudesJson == null) return [];
-    final decoded = jsonDecode(solicitudesJson);
-    if (decoded is List) {
-      return decoded
-          .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
-          .toList();
+    return _decodeJsonToList(solicitudesJson);
+  }
+
+  static List<Map<String, dynamic>> _decodeJsonToList(String jsonString) {
+    try {
+      final decoded = jsonDecode(jsonString);
+
+      if (decoded is List) {
+        return decoded
+            .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+
+      if (decoded is Map) {
+        if (decoded['data'] is List) {
+          return (decoded['data'] as List)
+              .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
+              .toList();
+        }
+
+        for (final key in ['reservas', 'solicitudes', 'items', 'results']) {
+          if (decoded[key] is List) {
+            return (decoded[key] as List)
+                .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
+                .toList();
+          }
+        }
+
+        if (decoded['data'] is Map) {
+          final inner = decoded['data'] as Map;
+          for (final v in inner.values) {
+            if (v is List) {
+              return v
+                  .map<Map<String, dynamic>>(
+                    (e) => Map<String, dynamic>.from(e),
+                  )
+                  .toList();
+            }
+          }
+        }
+
+        // No list found: wrap the map as a single item list
+        return [Map<String, dynamic>.from(decoded)];
+      }
+    } catch (_) {
+      // fall through and return empty list on decode errors
     }
+
     return [];
   }
 
-  // static Future<void> clearSession() async {
-  //   final prefs = await SharedPreferences.getInstance();
-  //   await prefs.clear();
-  // }
-  
+  static Future<void> clearSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+  }
+
   //falta la clase para mantener sesion iniciada ( check para recordar sesion)
 }
