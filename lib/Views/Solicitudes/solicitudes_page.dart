@@ -1,9 +1,78 @@
 import 'package:flutter/material.dart';
+import '../../utils/session_manager.dart';
 import '../widgets/header.dart';
 import '../widgets/bottom_navigation.dart';
 
-class SolicitudesPage extends StatelessWidget {
+class SolicitudesPage extends StatefulWidget {
   const SolicitudesPage({super.key});
+
+  @override
+  State<SolicitudesPage> createState() => _SolicitudesPageState();
+}
+
+class _SolicitudesPageState extends State<SolicitudesPage> {
+  List<Map<String, dynamic>> solicitudes = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSolicitudes();
+  }
+
+  Future<void> _loadSolicitudes() async {
+    final data = await SessionManager.getSolicitudes();
+    print('Solicitudes cargadas: $data');
+    // Filtrar entradas inválidas o vacías que puedan haberse guardado como Map
+    List<Map<String, dynamic>> filtered = [];
+    for (final item in data) {
+      if (item.isEmpty) continue;
+
+      bool valid = false;
+
+      // Si tiene campo 'cliente' con datos
+      if (item['cliente'] != null) {
+        final c = item['cliente'];
+        if (c is Map) {
+          final nombres = (c['nombres'] ?? '').toString().trim();
+          final apellidos = (c['apellidos'] ?? '').toString().trim();
+          if ((nombres + apellidos).trim().isNotEmpty) valid = true;
+        } else if (c.toString().trim().isNotEmpty) {
+          valid = true;
+        }
+      }
+
+      // Campos alternativos comunes
+      for (final key in [
+        'fecha',
+        'fecha_hora',
+        'hora',
+        'direccion',
+        'd_encuentro',
+        'direccionEncuentro',
+      ]) {
+        if (!valid &&
+            item[key] != null &&
+            item[key].toString().trim().isNotEmpty) {
+          valid = true;
+          break;
+        }
+      }
+
+      if (valid) {
+        filtered.add(Map<String, dynamic>.from(item));
+      }
+    }
+
+    // Depuración: muestra conteo original y filtrado
+    // ignore: avoid_print
+    print('Solicitudes válidas: ${filtered.length} / ${data.length}');
+
+    setState(() {
+      solicitudes = filtered;
+      _isLoading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -14,26 +83,36 @@ class SolicitudesPage extends StatelessWidget {
           children: [
             const LogoHeader(titulo: 'Solicitudes', estiloLogin: false),
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  _SolicitudCard(
-                    cliente: 'Jorge Alberto Gonzáles Heredia',
-                    fecha: '28/08/2025',
-                    hora: '2:00 PM',
-                    espera: '----',
-                    direccion: 'Campoy, San Juan de Lurigancho, Perú',
-                  ),
-                  const SizedBox(height: 16),
-                  _SolicitudCard(
-                    cliente: 'Jorge Alberto Gonzáles Heredia',
-                    fecha: '28/08/2025',
-                    hora: '2:00 PM',
-                    espera: '2:00h',
-                    direccion: 'Campoy, San Juan de Lurigancho, Perú',
-                  ),
-                ],
-              ),
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : solicitudes.isEmpty
+                  ? const Center(child: Text('No hay solicitudes'))
+                  : ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: solicitudes.length,
+                      itemBuilder: (context, index) {
+                        final s = solicitudes[index];
+
+                        final cliente = s['cliente']?.toString() ?? 'Usuario';
+                        final fecha = s['fecha']?.toString() ?? '---';
+                        final hora = s['hora']?.toString() ?? '---';
+                        final espera = s['espera']?.toString() ?? '---';
+                        final direccion = s['direccion']?.toString() ?? '---';
+
+                        return Column(
+                          children: [
+                            _SolicitudCard(
+                              cliente: cliente,
+                              fecha: fecha,
+                              hora: hora,
+                              espera: espera,
+                              direccion: direccion,
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+                        );
+                      },
+                    ),
             ),
             const CustomBottomNavBar(),
           ],
