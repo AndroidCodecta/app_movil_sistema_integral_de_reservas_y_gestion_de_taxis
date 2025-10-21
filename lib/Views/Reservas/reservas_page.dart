@@ -1,16 +1,21 @@
 import 'package:flutter/material.dart';
-import '../../utils/session_manager.dart';
-import 'reservas_detalle.dart';
-import '../widgets/header.dart';
-import '../widgets/bottom_navigation.dart';
+import '../../utils/session_manager.dart'; // Mantengo los imports originales
+import 'reservas_detalle.dart'; // Mantengo los imports originales
+import '../widgets/header.dart'; // Mantengo los imports originales
+import '../widgets/bottom_navigation.dart'; // Mantengo los imports originales
 
+// =======================================================
+// MODELO DE DATOS DE UNA RESERVA
+// =======================================================
 class ReservaDetalle {
+  final String id; // <--- AÑADIDO: ID de la reserva
   final String cliente;
   final String fechaReserva;
   final String horaRecogida;
   final String direccionEncuentro;
 
   ReservaDetalle({
+    required this.id, // <--- AÑADIDO
     required this.cliente,
     required this.fechaReserva,
     required this.horaRecogida,
@@ -19,6 +24,7 @@ class ReservaDetalle {
 
   factory ReservaDetalle.fromMap(Map<String, dynamic> map) {
     return ReservaDetalle(
+      id: map['id']?.toString() ?? 'N/A', // <--- USADO: id con fallback
       cliente: map['cliente']?.toString() ?? 'Usuario',
       fechaReserva: map['fechaReserva']?.toString() ?? '---',
       horaRecogida: map['horaRecogida']?.toString() ?? '---',
@@ -27,6 +33,9 @@ class ReservaDetalle {
   }
 }
 
+// =======================================================
+// PANTALLA DE RESERVAS (VERSIÓN DEMO SIN API)
+// =======================================================
 class ReservasScreen extends StatefulWidget {
   const ReservasScreen({super.key});
 
@@ -41,32 +50,47 @@ class _ReservasScreenState extends State<ReservasScreen> {
   @override
   void initState() {
     super.initState();
-    _loadReservas();
+    _loadReservasDemo();
   }
 
-  Future<void> _loadReservas() async {
-    try {
-      final data = await SessionManager.getReservas();
-      List<ReservaDetalle> filtered = [];
+  // =======================================================
+  // DEMO: CARGA RESERVAS DE MUESTRA SIN CONECTAR AL SERVIDOR
+  // =======================================================
+  Future<void> _loadReservasDemo() async {
+    await Future.delayed(const Duration(seconds: 1)); // simula carga
+    final mockData = [
+      {
+        'id': 'R1001', // <--- AÑADIDO ID DE MUESTRA
+        'cliente': 'Juan Pérez',
+        'fechaReserva': '2025-10-14',
+        'horaRecogida': '09:00 AM',
+        'direccionEncuentro': 'Av. Siempre Viva 742',
+      },
+      {
+        'id': 'R1002', // <--- AÑADIDO ID DE MUESTRA
+        'cliente': 'María López',
+        'fechaReserva': '2025-10-15',
+        'horaRecogida': '02:30 PM',
+        'direccionEncuentro': 'Calle Las Flores 128',
+      },
+      {
+        'id': 'R1003', // <--- AÑADIDO ID DE MUESTRA
+        'cliente': 'Carlos Rojas',
+        'fechaReserva': '2025-10-16',
+        'horaRecogida': '07:45 AM',
+        'direccionEncuentro': 'Jr. Los Cedros 255',
+      },
+    ];
 
-      for (final item in data) {
-        if (item.isNotEmpty &&
-            (item['cliente']?.toString().trim().isNotEmpty ?? false)) {
-          filtered.add(ReservaDetalle.fromMap(item));
-        }
-      }
-
-      setState(() {
-        reservas = filtered;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-    }
+    setState(() {
+      reservas = mockData.map((e) => ReservaDetalle.fromMap(e)).toList();
+      _isLoading = false;
+    });
   }
 
+  // =======================================================
+  // CONSTRUCCIÓN DE LA INTERFAZ
+  // =======================================================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -79,9 +103,7 @@ class _ReservasScreenState extends State<ReservasScreen> {
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : reservas.isEmpty
-                  ? const Center(
-                child: Text('No hay reservas'), // ESTILO CORREGIDO
-              )
+                  ? const Center(child: Text('No hay reservas'))
                   : ListView.builder(
                 padding: const EdgeInsets.all(16),
                 itemCount: reservas.length,
@@ -102,6 +124,9 @@ class _ReservasScreenState extends State<ReservasScreen> {
   }
 }
 
+// =======================================================
+// TARJETA VISUAL DE CADA RESERVA
+// =======================================================
 class ReservaDetalleCard extends StatelessWidget {
   final ReservaDetalle reserva;
 
@@ -134,10 +159,12 @@ class ReservaDetalleCard extends StatelessWidget {
                   color: Colors.amber,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Center(
+                child: Center(
+                  // <--- MODIFICADO: Uso de reserva.id
                   child: Text(
-                    'Reserva',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                    'Nro. Reserva: ${reserva.id}',
+                    style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                   ),
                 ),
               ),
