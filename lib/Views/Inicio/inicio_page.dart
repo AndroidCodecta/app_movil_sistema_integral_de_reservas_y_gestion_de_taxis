@@ -2,10 +2,15 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../../Utils/session_manager.dart';
+// Asegúrate de que ReservaDetalle esté definido en este archivo o importado aquí
 import '../Reservas/reservas_detalle.dart';
 import '../Reservas/reservas_page.dart';
 import '../widgets/header.dart';
 import '../widgets/bottom_navigation.dart';
+
+// >>> AÑADIR IMPORTACIÓN DE HISTORIALPAGE AQUÍ <<<
+// Nota: La ruta exacta puede variar según tu estructura de carpetas
+import '../Historial/historial_page.dart';
 
 class HomeScreen extends StatefulWidget {
   final List reservas;
@@ -28,9 +33,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadDataFromPrefs() async {
     final reservasData = await SessionManager.getReservas();
-    print(
-      'Reservas cargadas: $reservasData',
-    ); // Depuración: revisa en la consola
+    print('Reservas cargadas: $reservasData'); // Depuración: revisa en la consola
     setState(() {
       reservas = reservasData ?? [];
       _isLoading = false;
@@ -103,6 +106,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         .map((r) {
                       final cliente = r["cliente"] ?? {};
                       final reserva = ReservaDetalle(
+                        // FIX: Se añadió el campo 'id' que es requerido
+                        id: r["id"]?.toString() ?? 'ID_NO_DISPONIBLE',
                         cliente:
                         "${cliente["nombres"] ?? ""} ${cliente["apellidos"] ?? ""}"
                             .trim(),
@@ -110,18 +115,14 @@ class _HomeScreenState extends State<HomeScreen> {
                             .toString()
                             .split(" ")[0],
                         horaRecogida:
-                        (r["fecha_hora"] ?? "")
-                            .toString()
-                            .split(" ")
-                            .length >
+                        (r["fecha_hora"] ?? "").toString().split(" ").length >
                             1
                             ? r["fecha_hora"].split(" ")[1]
                             : "",
                         direccionEncuentro: r["d_encuentro"] ?? "",
                       );
                       return ReservaCard(reserva: reserva);
-                    })
-                  ,
+                    }),
                 ],
               ),
             ),
@@ -133,13 +134,65 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
+// -------------------------------------------------------------
+// WIDGETS
+// -------------------------------------------------------------
+
 class StatusButtons extends StatelessWidget {
   const StatusButtons({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.center, // Alinea el ButtonBar al centro si no ocupa todo el ancho
       children: [
+        // >>> BUTTON BAR CON BOTÓN HISTORIAL <<<
+        ButtonBarTheme(
+          data: const ButtonBarThemeData(
+            // Centra los botones dentro del ButtonBar
+            alignment: MainAxisAlignment.center,
+            // AÑADIDO: Relleno horizontal para que no se pegue a los lados
+            //padding: EdgeInsets.symmetric(horizontal: 0),
+          ),
+          child: ButtonBar(
+            children: [
+              // Botón "Historial"
+              ElevatedButton(
+                // Acción al presionar el botón
+                onPressed: () {
+                  // Usamos Navigator.push para navegar a una nueva pantalla
+                  Navigator.push(
+                    context,
+                    // MaterialPageRoute define la nueva ruta (pantalla)
+                    MaterialPageRoute(
+                      // builder construye la nueva pantalla, que es tu HistorialPage
+                      builder: (context) => HistorialPage(), // Aquí usa la clase importada
+                    ),
+                  );
+                },
+                // Estilo del botón
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.grey[300], // Color de fondo
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12), // Relleno para que sea más grande
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8), // Bordes redondeados
+                  ),
+                  minimumSize: Size.zero, // Permite que el padding defina el tamaño
+                ),
+                // Contenido visible del botón: el texto "Historial"
+                child: const Text(
+                  'Historial',
+                  style: TextStyle(color: Colors.black, fontSize: 14), // Color y tamaño del texto
+                ),
+              ),
+            ],
+          ),
+        ),
+        // >>> FIN BUTTON BAR <<<
+
+        const SizedBox(height: 16), // Separación entre el botón de historial y el título de estado
+
+        // TÍTULO "ESTADO"
         Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(vertical: 12),
@@ -163,6 +216,8 @@ class StatusButtons extends StatelessWidget {
         const SizedBox(height: 8),
         const EstadoChoferButton(),
         const SizedBox(height: 8),
+
+        // TÍTULO "RESUMEN DE HOY"
         GestureDetector(
           onTap: () {
             Navigator.push(
@@ -196,6 +251,8 @@ class StatusButtons extends StatelessWidget {
   }
 }
 
+// El resto de las clases (EstadoChoferButton, ReservaCard) siguen igual...
+
 class EstadoChoferButton extends StatefulWidget {
   const EstadoChoferButton({super.key});
 
@@ -220,9 +277,11 @@ class _EstadoChoferButtonState extends State<EstadoChoferButton> {
     final userId = await SessionManager.getUserId();
 
     if (token == null || userId == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("No hay sesión iniciada")));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("No hay sesión iniciada")),
+        );
+      }
       return;
     }
 
@@ -247,34 +306,106 @@ class _EstadoChoferButtonState extends State<EstadoChoferButton> {
       } else if (response.statusCode == 404) {
         setState(() => activo = false);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              "Error ${response.statusCode}: no se pudo obtener estado",
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                "Error ${response.statusCode}: no se pudo obtener estado",
+              ),
             ),
-          ),
-        );
+          );
+        }
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Error de conexión: $e")));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error de conexión: $e")),
+        );
+      }
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
-  void _toggleEstado() {
+  Future<void> _toggleEstado() async {
     if (activo != null) {
+      final nuevoEstado = !activo!;
+
+      // Simulación de cambio de estado optimista
       setState(() {
-        activo = !activo!;
+        activo = nuevoEstado;
+        _isLoading = true;
       });
+
+      final token = await SessionManager.getToken();
+      final userId = await SessionManager.getUserId();
+
+      if (token == null || userId == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("No hay sesión iniciada")),
+          );
+        }
+        setState(() {
+          activo = !nuevoEstado; // Revertir si falla
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final url = Uri.parse(
+        "http://servidorcorman.dyndns.org:7019/api/chofer/cambio_estado", // Asumiendo endpoint para cambiar estado
+      );
+
+      try {
+        final response = await http.post(
+          url,
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer $token",
+          },
+          body: jsonEncode({
+            "id_user": userId,
+            "estado": nuevoEstado ? 1 : 0,
+          }),
+        );
+
+        if (response.statusCode == 200) {
+          // El estado se actualizó correctamente en el servidor
+          // Ya se actualizó localmente, solo quitamos la carga.
+        } else {
+          // Si el servidor no confirma, revertimos el estado
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  "Error al cambiar estado: ${response.statusCode}",
+                ),
+              ),
+            );
+          }
+          setState(() {
+            activo = !nuevoEstado;
+          });
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Error de conexión al cambiar estado: $e")),
+          );
+        }
+        setState(() {
+          activo = !nuevoEstado;
+        });
+      } finally {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
+    if (_isLoading && activo == null) {
       return const CircularProgressIndicator();
     }
 
