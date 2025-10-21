@@ -48,83 +48,83 @@ class _HomeScreenState extends State<HomeScreen> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : SingleChildScrollView(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      children: [
-                        const StatusButtons(),
-                        const SizedBox(height: 16),
-                        if (reservas.isEmpty ||
-                            reservas.every(
-                              (r) =>
-                                  r == null ||
-                                  r is! Map ||
-                                  r.isEmpty ||
-                                  r['cliente'] == null ||
-                                  r['fecha_hora'] == null ||
-                                  r['d_encuentro'] == null,
-                            ))
-                          Container(
-                            padding: const EdgeInsets.all(20),
-                            margin: const EdgeInsets.only(bottom: 16),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.grey.withOpacity(0.2),
-                                  spreadRadius: 1,
-                                  blurRadius: 3,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: const Center(
-                              child: Text(
-                                "No tienes reservas por el momento 🚗",
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          )
-                        else
-                          ...reservas
-                              .where(
-                                (r) =>
-                                    r != null &&
-                                    r is Map &&
-                                    r.isNotEmpty &&
-                                    r['cliente'] != null &&
-                                    r['fecha_hora'] != null &&
-                                    r['d_encuentro'] != null,
-                              )
-                              .map((r) {
-                                final cliente = r["cliente"] ?? {};
-                                final reserva = ReservaDetalle(
-                                  cliente:
-                                      "${cliente["nombres"] ?? ""} ${cliente["apellidos"] ?? ""}"
-                                          .trim(),
-                                  fechaReserva: (r["fecha_hora"] ?? "")
-                                      .toString()
-                                      .split(" ")[0],
-                                  horaRecogida:
-                                      (r["fecha_hora"] ?? "")
-                                              .toString()
-                                              .split(" ")
-                                              .length >
-                                          1
-                                      ? r["fecha_hora"].split(" ")[1]
-                                      : "",
-                                  direccionEncuentro: r["d_encuentro"] ?? "",
-                                );
-                                return ReservaCard(reserva: reserva);
-                              })
-                              ,
-                      ],
-                    ),
-                  ),
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  const StatusButtons(),
+                  const SizedBox(height: 16),
+                  if (reservas.isEmpty ||
+                      reservas.every(
+                            (r) =>
+                        r == null ||
+                            r is! Map ||
+                            r.isEmpty ||
+                            r['cliente'] == null ||
+                            r['fecha_hora'] == null ||
+                            r['d_encuentro'] == null,
+                      ))
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withOpacity(0.2),
+                            spreadRadius: 1,
+                            blurRadius: 3,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Center(
+                        child: Text(
+                          "No tienes reservas por el momento 🚗",
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    ...reservas
+                        .where(
+                          (r) =>
+                      r != null &&
+                          r is Map &&
+                          r.isNotEmpty &&
+                          r['cliente'] != null &&
+                          r['fecha_hora'] != null &&
+                          r['d_encuentro'] != null,
+                    )
+                        .map((r) {
+                      final cliente = r["cliente"] ?? {};
+                      final reserva = ReservaDetalle(
+                        cliente:
+                        "${cliente["nombres"] ?? ""} ${cliente["apellidos"] ?? ""}"
+                            .trim(),
+                        fechaReserva: (r["fecha_hora"] ?? "")
+                            .toString()
+                            .split(" ")[0],
+                        horaRecogida:
+                        (r["fecha_hora"] ?? "")
+                            .toString()
+                            .split(" ")
+                            .length >
+                            1
+                            ? r["fecha_hora"].split(" ")[1]
+                            : "",
+                        direccionEncuentro: r["d_encuentro"] ?? "",
+                      );
+                      return ReservaCard(reserva: reserva);
+                    })
+                  ,
+                ],
+              ),
+            ),
           ),
         ],
       ),
@@ -216,7 +216,7 @@ class _EstadoChoferButtonState extends State<EstadoChoferButton> {
   Future<void> _fetchEstado() async {
     setState(() => _isLoading = true);
 
-    final token = await SessionManager.getToken(); 
+    final token = await SessionManager.getToken();
     final userId = await SessionManager.getUserId();
 
     if (token == null || userId == null) {

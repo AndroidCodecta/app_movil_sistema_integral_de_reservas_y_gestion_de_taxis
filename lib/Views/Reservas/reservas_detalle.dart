@@ -108,7 +108,7 @@ class ReservaDetalleCompletoScreen extends StatelessWidget {
                                   const SizedBox(width: 16),
                                   Column(
                                     crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                    CrossAxisAlignment.start,
                                     children: const [
                                       Text('Placa: ABC-123'),
                                       Text('Marca: Mazda'),

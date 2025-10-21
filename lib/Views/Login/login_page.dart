@@ -32,17 +32,29 @@ class _LoginPageState extends State<LoginPage> {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
 
-      final url = Uri.parse("http://servidorcorman.dyndns.org:7019/api/login_movil");
+      final url = Uri.parse(
+        "http://servidorcorman.dyndns.org:7019/api/login_movil",
+      );
+
+      final stopwatch = Stopwatch()..start();
 
       try {
-        final response = await http.post(
-          url,
-          headers: {"Content-Type": "application/json"},
-          body: jsonEncode({
-            "email": _emailController.text.trim(),
-            "password": _passwordController.text.trim(),
-          }),
-        );
+        // Use a timeout to avoid hanging long requests; Postman might be faster
+        // due to network/local conditions, but a timeout here gives better UX.
+        final response = await http
+            .post(
+              url,
+              headers: {"Content-Type": "application/json"},
+              body: jsonEncode({
+                "email": _emailController.text.trim(),
+                "password": _passwordController.text.trim(),
+              }),
+            )
+            .timeout(const Duration(seconds: 15));
+
+        stopwatch.stop();
+        // ignore: avoid_print
+        print('Login request time: ${stopwatch.elapsedMilliseconds} ms');
 
         if (response.statusCode == 200) {
           final data = jsonDecode(response.body);
@@ -62,8 +74,8 @@ class _LoginPageState extends State<LoginPage> {
                 ? solicitudesData
                 : (solicitudesData is Map ? [solicitudesData] : []);
 
-            // 🔹 Guardar en SessionManager
-            await SessionManager.saveSession(
+            // Persist token and userId quickly so UI can proceed, then store the rest in background
+            await SessionManager.saveSessionFast(
               token: token,
               userId: userId,
               user: user,
@@ -71,14 +83,11 @@ class _LoginPageState extends State<LoginPage> {
               solicitudes: solicitudes,
             );
 
-            // 🔹 Navegar a HomeScreen
+            // Navegar inmediatamente a HomeScreen (percepción de velocidad)
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
-                builder: (context) => HomeScreen(
-                  reservas: reservas,
-                  //solicitudes: solicitudes,
-                ),
+                builder: (context) => HomeScreen(reservas: reservas),
               ),
             );
           } else {
@@ -89,7 +98,11 @@ class _LoginPageState extends State<LoginPage> {
         } else if (response.statusCode == 404) {
           final data = jsonDecode(response.body);
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Sin resultados: ${data["data"] ?? "ningún registro encontrado"}")),
+            SnackBar(
+              content: Text(
+                "Sin resultados: ${data["data"] ?? "ningún registro encontrado"}",
+              ),
+            ),
           );
         } else if (response.statusCode == 500) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -101,9 +114,9 @@ class _LoginPageState extends State<LoginPage> {
           );
         }
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error de conexión: $e")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Error de conexión: $e")));
       } finally {
         setState(() => _isLoading = false);
       }
@@ -158,13 +171,16 @@ class _LoginPageState extends State<LoginPage> {
                       TextFormField(
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
-                        decoration: _inputDecoration("Ingrese su correo electrónico"),
+                        decoration: _inputDecoration(
+                          "Ingrese su correo electrónico",
+                        ),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
                             return 'Por favor ingrese su correo electrónico';
                           }
-                          if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                              .hasMatch(value)) {
+                          if (!RegExp(
+                            r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                          ).hasMatch(value)) {
                             return 'Ingrese un correo válido';
                           }
                           return null;
@@ -176,21 +192,22 @@ class _LoginPageState extends State<LoginPage> {
                       TextFormField(
                         controller: _passwordController,
                         obscureText: _obscurePassword,
-                        decoration: _inputDecoration("Ingrese su contraseña").copyWith(
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscurePassword
-                                  ? Icons.visibility
-                                  : Icons.visibility_off,
-                              color: Colors.grey[600],
+                        decoration: _inputDecoration("Ingrese su contraseña")
+                            .copyWith(
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _obscurePassword
+                                      ? Icons.visibility
+                                      : Icons.visibility_off,
+                                  color: Colors.grey[600],
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    _obscurePassword = !_obscurePassword;
+                                  });
+                                },
+                              ),
                             ),
-                            onPressed: () {
-                              setState(() {
-                                _obscurePassword = !_obscurePassword;
-                              });
-                            },
-                          ),
-                        ),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
                             return 'Por favor ingrese su contraseña';
@@ -216,20 +233,20 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                           child: _isLoading
                               ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2,
-                            ),
-                          )
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
                               : const Text(
-                            'Iniciar sesión',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
+                                  'Iniciar sesión',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                         ),
                       ),
                       const SizedBox(height: 24),

@@ -80,19 +80,19 @@ class _ReservasScreenState extends State<ReservasScreen> {
                   ? const Center(child: CircularProgressIndicator())
                   : reservas.isEmpty
                   ? const Center(
-                      child: Text('No hay reservas'), // ESTILO CORREGIDO
-                    )
+                child: Text('No hay reservas'), // ESTILO CORREGIDO
+              )
                   : ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: reservas.length,
-                      itemBuilder: (context, index) {
-                        final reserva = reservas[index];
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 16.0),
-                          child: ReservaDetalleCard(reserva: reserva),
-                        );
-                      },
-                    ),
+                padding: const EdgeInsets.all(16),
+                itemCount: reservas.length,
+                itemBuilder: (context, index) {
+                  final reserva = reservas[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 16.0),
+                    child: ReservaDetalleCard(reserva: reserva),
+                  );
+                },
+              ),
             ),
             const CustomBottomNavBar(),
           ],

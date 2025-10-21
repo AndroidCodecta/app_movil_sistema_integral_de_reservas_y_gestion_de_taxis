@@ -81,7 +81,7 @@ class _SolicitudesPageState extends State<SolicitudesPage> {
       body: SafeArea(
         child: Column(
           children: [
-            const LogoHeader(titulo: 'Solicitudes', estiloLogin: false),
+            const LogoHeader(titulo: 'Asignaciones', estiloLogin: false),
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())

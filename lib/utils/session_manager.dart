@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SessionManager {
@@ -23,6 +24,42 @@ class SessionManager {
     if (solicitudes != null) {
       await prefs.setString("solicitudes", jsonEncode(solicitudes));
     }
+  }
+
+  // Faster save: persist token and userId first (awaited) so UI can proceed.
+  // Then write larger payloads (user, reservas, solicitudes) in background
+  // without blocking the caller.
+  static Future<void> saveSessionFast({
+    required String token,
+    required int userId,
+    Map<String, dynamic>? user,
+    List<dynamic>? reservas,
+    List<dynamic>? solicitudes,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // Persist minimal auth info synchronously
+    await prefs.setString("auth_token", token);
+    await prefs.setInt("user_id", userId);
+
+    // Schedule background writes for potentially large payloads.
+    // Mark intentionally unawaited so the analyzer doesn't warn.
+    // ignore: unawaited_futures
+    Future(() async {
+      try {
+        if (user != null) {
+          await prefs.setString("user", jsonEncode(user));
+        }
+        if (reservas != null) {
+          await prefs.setString("reservas_dia", jsonEncode(reservas));
+        }
+        if (solicitudes != null) {
+          await prefs.setString("solicitudes", jsonEncode(solicitudes));
+        }
+      } catch (_) {
+        // ignore background write errors
+      }
+    });
   }
 
   static Future<String?> getToken() async {
@@ -102,6 +139,18 @@ class SessionManager {
     }
 
     return [];
+  }
+
+  //Estado del chofer
+
+  static Future<void> setEstadoChofer(bool activo) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool("chofer_activo", activo);
+  }
+
+  static Future<bool?> getEstadoChofer() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool("chofer_activo");
   }
 
   static Future<void> clearSession() async {
