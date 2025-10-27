@@ -20,9 +20,9 @@ class ReservaDetalle {
   factory ReservaDetalle.fromMap(Map<String, dynamic> map) {
     return ReservaDetalle(
       cliente: map['cliente']?.toString() ?? 'Usuario',
-      fechaReserva: map['fechaReserva']?.toString() ?? '---',
-      horaRecogida: map['horaRecogida']?.toString() ?? '---',
-      direccionEncuentro: map['direccionEncuentro']?.toString() ?? '---',
+      fechaReserva: map['fecha']?.toString() ?? '---',
+      horaRecogida: map['hora_recogida']?.toString() ?? '---',
+      direccionEncuentro: map['d_encuentro']?.toString() ?? '---',
     );
   }
 }
@@ -37,6 +37,7 @@ class ReservasScreen extends StatefulWidget {
 class _ReservasScreenState extends State<ReservasScreen> {
   List<ReservaDetalle> reservas = [];
   bool _isLoading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -45,24 +46,24 @@ class _ReservasScreenState extends State<ReservasScreen> {
   }
 
   Future<void> _loadReservas() async {
-    try {
-      final data = await SessionManager.getReservas();
-      List<ReservaDetalle> filtered = [];
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
 
-      for (final item in data) {
-        if (item.isNotEmpty &&
-            (item['cliente']?.toString().trim().isNotEmpty ?? false)) {
-          filtered.add(ReservaDetalle.fromMap(item));
-        }
-      }
+    try {
+      final data = await SessionManager.fetchReservasFromApi();
+
+      final parsed = data.map((e) => ReservaDetalle.fromMap(e)).toList();
 
       setState(() {
-        reservas = filtered;
+        reservas = parsed;
         _isLoading = false;
       });
     } catch (e) {
       setState(() {
         _isLoading = false;
+        _error = e.toString();
       });
     }
   }
@@ -78,20 +79,30 @@ class _ReservasScreenState extends State<ReservasScreen> {
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
-                  : reservas.isEmpty
-                  ? const Center(
-                child: Text('No hay reservas'), // ESTILO CORREGIDO
+                  : _error != null
+                  ? Center(
+                child: Text(
+                  'Error: $_error',
+                  style: const TextStyle(color: Colors.red),
+                  textAlign: TextAlign.center,
+                ),
               )
-                  : ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: reservas.length,
-                itemBuilder: (context, index) {
-                  final reserva = reservas[index];
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 16.0),
-                    child: ReservaDetalleCard(reserva: reserva),
-                  );
-                },
+                  : reservas.isEmpty
+                  ? const Center(child: Text('No hay reservas'))
+                  : RefreshIndicator(
+                onRefresh: _loadReservas,
+                child: ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: reservas.length,
+                  itemBuilder: (context, index) {
+                    final reserva = reservas[index];
+                    return Padding(
+                      padding:
+                      const EdgeInsets.only(bottom: 16.0),
+                      child: ReservaDetalleCard(reserva: reserva),
+                    );
+                  },
+                ),
               ),
             ),
             const CustomBottomNavBar(),
@@ -147,11 +158,11 @@ class ReservaDetalleCard extends StatelessWidget {
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),
-              Text('Fecha de reserva: ${reserva.fechaReserva}'),
+              Text('Fecha: ${reserva.fechaReserva}'),
               const SizedBox(height: 4),
-              Text('Hora Recogida: ${reserva.horaRecogida}'),
+              Text('Hora: ${reserva.horaRecogida}'),
               const SizedBox(height: 4),
-              Text('Dirección de encuentro: ${reserva.direccionEncuentro}'),
+              Text('Dirección: ${reserva.direccionEncuentro}'),
               const SizedBox(height: 12),
               Align(
                 alignment: Alignment.centerRight,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../utils/session_manager.dart';
+import '../../utils/solicitud_service.dart';
 import '../widgets/header.dart';
 import '../widgets/bottom_navigation.dart';
 
@@ -22,56 +23,52 @@ class _SolicitudesPageState extends State<SolicitudesPage> {
 
   Future<void> _loadSolicitudes() async {
     final data = await SessionManager.getSolicitudes();
-    print('Solicitudes cargadas: $data');
-    // Filtrar entradas inválidas o vacías que puedan haberse guardado como Map
-    List<Map<String, dynamic>> filtered = [];
-    for (final item in data) {
-      if (item.isEmpty) continue;
+    List<Map<String, dynamic>> registros = [];
 
-      bool valid = false;
-
-      // Si tiene campo 'cliente' con datos
-      if (item['cliente'] != null) {
-        final c = item['cliente'];
-        if (c is Map) {
-          final nombres = (c['nombres'] ?? '').toString().trim();
-          final apellidos = (c['apellidos'] ?? '').toString().trim();
-          if ((nombres + apellidos).trim().isNotEmpty) valid = true;
-        } else if (c.toString().trim().isNotEmpty) {
-          valid = true;
-        }
-      }
-
-      // Campos alternativos comunes
-      for (final key in [
-        'fecha',
-        'fecha_hora',
-        'hora',
-        'direccion',
-        'd_encuentro',
-        'direccionEncuentro',
-      ]) {
-        if (!valid &&
-            item[key] != null &&
-            item[key].toString().trim().isNotEmpty) {
-          valid = true;
-          break;
-        }
-      }
-
-      if (valid) {
-        filtered.add(Map<String, dynamic>.from(item));
+    if (data.isNotEmpty) {
+      final primer = data.first;
+      if (primer.containsKey('data') && primer['data'] is List) {
+        registros = List<Map<String, dynamic>>.from(primer['data']);
+      } else if (data is List) {
+        registros = List<Map<String, dynamic>>.from(data);
       }
     }
 
-    // Depuración: muestra conteo original y filtrado
-    // ignore: avoid_print
-    print('Solicitudes válidas: ${filtered.length} / ${data.length}');
-
     setState(() {
-      solicitudes = filtered;
+      solicitudes = registros;
       _isLoading = false;
     });
+  }
+
+  Future<void> _responderSolicitud(int solicitudChoferId, int estado) async {
+    try {
+      await SolicitudService.responderSolicitud(
+        solicitudChoferId: solicitudChoferId,
+        estado: estado,
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(estado == 1
+              ? 'Solicitud aceptada correctamente'
+              : 'Solicitud rechazada'),
+          backgroundColor: estado == 1 ? Colors.green : Colors.red,
+        ),
+      );
+
+      // eliminar la solicitud de la lista local
+      setState(() {
+        solicitudes.removeWhere(
+                (s) => s['id'] == solicitudChoferId || s['solicitud_chofer_id'] == solicitudChoferId);
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
@@ -88,31 +85,46 @@ class _SolicitudesPageState extends State<SolicitudesPage> {
                   : solicitudes.isEmpty
                   ? const Center(child: Text('No hay solicitudes'))
                   : ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: solicitudes.length,
-                      itemBuilder: (context, index) {
-                        final s = solicitudes[index];
+                padding: const EdgeInsets.all(16),
+                itemCount: solicitudes.length,
+                itemBuilder: (context, index) {
+                  final s = solicitudes[index];
+                  final reserva = s['reserva'] ?? {};
+                  final cliente = reserva['cliente'] ?? {};
+                  final idSolicitud = s['id'] ?? s['solicitud_chofer_id'] ?? 0;
 
-                        final cliente = s['cliente']?.toString() ?? 'Usuario';
-                        final fecha = s['fecha']?.toString() ?? '---';
-                        final hora = s['hora']?.toString() ?? '---';
-                        final espera = s['espera']?.toString() ?? '---';
-                        final direccion = s['direccion']?.toString() ?? '---';
+                  final nombreCliente =
+                  '${cliente['nombres'] ?? ''} ${cliente['apellidos'] ?? ''}'
+                      .trim()
+                      .isEmpty
+                      ? 'Usuario'
+                      : '${cliente['nombres']} ${cliente['apellidos']}';
 
-                        return Column(
-                          children: [
-                            _SolicitudCard(
-                              cliente: cliente,
-                              fecha: fecha,
-                              hora: hora,
-                              espera: espera,
-                              direccion: direccion,
-                            ),
-                            const SizedBox(height: 16),
-                          ],
-                        );
-                      },
-                    ),
+                  final fecha = reserva['fecha_hora']?.toString() ?? '---';
+                  final espera = reserva['tiempo_espera']?.toString() ?? '---';
+                  final direccion =
+                      reserva['d_encuentro']?.toString() ?? '---';
+
+                  return Column(
+                    children: [
+                      _SolicitudCard(
+                        cliente: nombreCliente,
+                        fecha: fecha.split(' ')[0],
+                        hora: fecha.split(' ').length > 1
+                            ? fecha.split(' ')[1]
+                            : '---',
+                        espera: espera,
+                        direccion: direccion,
+                        onAceptar: () =>
+                            _responderSolicitud(idSolicitud, 1),
+                        onRechazar: () =>
+                            _responderSolicitud(idSolicitud, 0),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                  );
+                },
+              ),
             ),
             const CustomBottomNavBar(),
           ],
@@ -128,6 +140,8 @@ class _SolicitudCard extends StatelessWidget {
   final String hora;
   final String espera;
   final String direccion;
+  final VoidCallback onAceptar;
+  final VoidCallback onRechazar;
 
   const _SolicitudCard({
     required this.cliente,
@@ -135,6 +149,8 @@ class _SolicitudCard extends StatelessWidget {
     required this.hora,
     required this.espera,
     required this.direccion,
+    required this.onAceptar,
+    required this.onRechazar,
   });
 
   @override
@@ -156,31 +172,23 @@ class _SolicitudCard extends StatelessWidget {
               ),
               child: const Center(
                 child: Text(
-                  'Solicitud',
+                  'Asignación',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                 ),
               ),
             ),
             const SizedBox(height: 8),
-            Text(
-              'Cliente: $cliente',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
+            Text('Cliente: $cliente',
+                style: const TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 4),
             Text('Fecha de reserva: $fecha'),
             const SizedBox(height: 4),
+            Row(children: [Text('Hora Recogida: $hora')]),
             Row(
               children: [
-                Text('Hora Recogida: $hora'),
-                const SizedBox(width: 16),
-                Text(
-                  'Tiempo de espera: ',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  espera,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
+                const Text('Tiempo de espera: ',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                Text(espera, style: const TextStyle(fontWeight: FontWeight.bold)),
               ],
             ),
             const SizedBox(height: 4),
@@ -195,10 +203,9 @@ class _SolicitudCard extends StatelessWidget {
                       backgroundColor: Colors.green,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
+                          borderRadius: BorderRadius.circular(16)),
                     ),
-                    onPressed: () {},
+                    onPressed: onAceptar,
                     child: const Text('Aceptar'),
                   ),
                 ),
@@ -209,10 +216,9 @@ class _SolicitudCard extends StatelessWidget {
                       backgroundColor: Colors.red,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
+                          borderRadius: BorderRadius.circular(16)),
                     ),
-                    onPressed: () {},
+                    onPressed: onRechazar,
                     child: const Text('Rechazar'),
                   ),
                 ),

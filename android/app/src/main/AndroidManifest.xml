@@ -3,6 +3,9 @@
     <application
         android:label="app_movil_sistema_integral_de_reservas_y_gestion_de_taxis"
         android:name="${applicationName}"
+        android:enableOnBackInvokedCallback="true"
+        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"

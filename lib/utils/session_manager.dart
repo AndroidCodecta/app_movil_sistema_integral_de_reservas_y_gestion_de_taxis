@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 
 class SessionManager {
+  // ===== GUARDAR SESIÓN =====
   static Future<void> saveSession({
     required String token,
     required int userId,
@@ -26,9 +28,7 @@ class SessionManager {
     }
   }
 
-  // Faster save: persist token and userId first (awaited) so UI can proceed.
-  // Then write larger payloads (user, reservas, solicitudes) in background
-  // without blocking the caller.
+  // ===== GUARDADO RÁPIDO (no bloqueante) =====
   static Future<void> saveSessionFast({
     required String token,
     required int userId,
@@ -38,13 +38,9 @@ class SessionManager {
   }) async {
     final prefs = await SharedPreferences.getInstance();
 
-    // Persist minimal auth info synchronously
     await prefs.setString("auth_token", token);
     await prefs.setInt("user_id", userId);
 
-    // Schedule background writes for potentially large payloads.
-    // Mark intentionally unawaited so the analyzer doesn't warn.
-    // ignore: unawaited_futures
     Future(() async {
       try {
         if (user != null) {
@@ -56,12 +52,11 @@ class SessionManager {
         if (solicitudes != null) {
           await prefs.setString("solicitudes", jsonEncode(solicitudes));
         }
-      } catch (_) {
-        // ignore background write errors
-      }
+      } catch (_) {}
     });
   }
 
+  // ===== GETTERS BÁSICOS =====
   static Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString("auth_token");
@@ -79,6 +74,12 @@ class SessionManager {
     return jsonDecode(userJson);
   }
 
+  static Future<String?> getUserDni() async {
+    final user = await getUser();
+    return user?['dni']?.toString();
+  }
+
+  // ===== LECTURA DE DATOS GUARDADOS =====
   static Future<List<Map<String, dynamic>>> getReservas() async {
     final prefs = await SharedPreferences.getInstance();
     final reservasJson = prefs.getString("reservas_dia");
@@ -97,23 +98,27 @@ class SessionManager {
     try {
       final decoded = jsonDecode(jsonString);
 
+      Map<String, dynamic> _normalizeMap(Map input) {
+        return Map<String, dynamic>.from(
+          input.map((k, v) => MapEntry(k.toString(), v)),
+        );
+      }
+
       if (decoded is List) {
-        return decoded
-            .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
-            .toList();
+        return decoded.map<Map<String, dynamic>>((e) => _normalizeMap(e)).toList();
       }
 
       if (decoded is Map) {
         if (decoded['data'] is List) {
           return (decoded['data'] as List)
-              .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
+              .map<Map<String, dynamic>>((e) => _normalizeMap(e))
               .toList();
         }
 
         for (final key in ['reservas', 'solicitudes', 'items', 'results']) {
           if (decoded[key] is List) {
             return (decoded[key] as List)
-                .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
+                .map<Map<String, dynamic>>((e) => _normalizeMap(e))
                 .toList();
           }
         }
@@ -122,27 +127,65 @@ class SessionManager {
           final inner = decoded['data'] as Map;
           for (final v in inner.values) {
             if (v is List) {
-              return v
-                  .map<Map<String, dynamic>>(
-                    (e) => Map<String, dynamic>.from(e),
-                  )
-                  .toList();
+              return v.map<Map<String, dynamic>>((e) => _normalizeMap(e)).toList();
             }
           }
         }
 
-        // No list found: wrap the map as a single item list
-        return [Map<String, dynamic>.from(decoded)];
+        return [_normalizeMap(decoded)];
       }
-    } catch (_) {
-      // fall through and return empty list on decode errors
+    } catch (e) {
+      print('Error al decodificar JSON: $e');
     }
 
     return [];
   }
 
-  //Estado del chofer
+  static Future<List<Map<String, dynamic>>> fetchReservasFromApi() async {
+    final token = await getToken();
+    final idUser = await getUserId();
 
+    if (token == null || idUser == null) {
+      throw Exception('Faltan datos del chofer (token o id)');
+    }
+
+    final url = Uri.parse('http://servidorcorman.dyndns.org:7019/api/chofer/reservas');
+    final body = {"id_user": idUser};
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(body),
+    );
+
+    if (response.statusCode == 200) {
+      final jsonData = jsonDecode(response.body);
+
+      if (jsonData['status'] == 'success' &&
+          jsonData['reservas'] != null &&
+          jsonData['reservas']['data'] is List) {
+        final reservas = List<Map<String, dynamic>>.from(jsonData['reservas']['data']);
+        await _saveReservas(reservas);
+        return reservas;
+      } else {
+        throw Exception('Formato de datos inesperado o sin éxito');
+      }
+    } else if (response.statusCode == 404) {
+      throw Exception('Usuario no encontrado');
+    } else {
+      throw Exception('Error del servidor (${response.statusCode})');
+    }
+  }
+
+  static Future<void> _saveReservas(List<Map<String, dynamic>> reservas) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString("reservas_dia", jsonEncode(reservas));
+  }
+
+  // ===== ESTADO DEL CHOFER =====
   static Future<void> setEstadoChofer(bool activo) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool("chofer_activo", activo);
@@ -153,10 +196,9 @@ class SessionManager {
     return prefs.getBool("chofer_activo");
   }
 
+  // ===== LIMPIAR SESIÓN =====
   static Future<void> clearSession() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
   }
-
-  //falta la clase para mantener sesion iniciada ( check para recordar sesion)
 }

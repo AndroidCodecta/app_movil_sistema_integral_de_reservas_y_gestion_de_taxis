@@ -50,7 +50,7 @@ class _LoginPageState extends State<LoginPage> {
                 "password": _passwordController.text.trim(),
               }),
             )
-            .timeout(const Duration(seconds: 15));
+            .timeout(const Duration(seconds: 30));
 
         stopwatch.stop();
         // ignore: avoid_print
