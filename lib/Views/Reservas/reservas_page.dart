@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
-import '../../utils/session_manager.dart';
 import 'reservas_detalle.dart';
+import 'package:flutter/material.dart';
+import '../../Utils/session_manager.dart';
 import '../widgets/header.dart';
 import '../widgets/bottom_navigation.dart';
 
@@ -16,17 +16,9 @@ class ReservaDetalle {
     required this.horaRecogida,
     required this.direccionEncuentro,
   });
-
-  factory ReservaDetalle.fromMap(Map<String, dynamic> map) {
-    return ReservaDetalle(
-      cliente: map['cliente']?.toString() ?? 'Usuario',
-      fechaReserva: map['fecha']?.toString() ?? '---',
-      horaRecogida: map['hora_recogida']?.toString() ?? '---',
-      direccionEncuentro: map['d_encuentro']?.toString() ?? '---',
-    );
-  }
 }
 
+// Widget principal de la pantalla Reservas
 class ReservasScreen extends StatefulWidget {
   const ReservasScreen({super.key});
 
@@ -35,9 +27,8 @@ class ReservasScreen extends StatefulWidget {
 }
 
 class _ReservasScreenState extends State<ReservasScreen> {
-  List<ReservaDetalle> reservas = [];
+  List reservas = [];
   bool _isLoading = true;
-  String? _error;
 
   @override
   void initState() {
@@ -46,145 +37,215 @@ class _ReservasScreenState extends State<ReservasScreen> {
   }
 
   Future<void> _loadReservas() async {
+    final reservasData = await SessionManager.getReservas();
     setState(() {
-      _isLoading = true;
-      _error = null;
+      reservas = reservasData;
+      _isLoading = false;
     });
-
-    try {
-      final data = await SessionManager.fetchReservasFromApi();
-
-      final parsed = data.map((e) => ReservaDetalle.fromMap(e)).toList();
-
-      setState(() {
-        reservas = parsed;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _error = e.toString();
-      });
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[100],
-      body: SafeArea(
+      body: Column(
+        children: [
+          const LogoHeader(titulo: 'Reservas', estiloLogin: false),
+
+          // Lista de reservas
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : reservas.isEmpty
+                ? Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
+                      margin: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withOpacity(0.2),
+                            spreadRadius: 1,
+                            blurRadius: 3,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Text(
+                        "No tienes reservas 🚗",
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  )
+                : SingleChildScrollView(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      children: reservas
+                          .where((r) => r != null && r is Map && r.isNotEmpty)
+                          .map(
+                            (reservaData) => ReservaDetalleCard(
+                              reservaData: reservaData as Map<String, dynamic>,
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ),
+          ),
+        ],
+      ),
+      bottomNavigationBar: const CustomBottomNavBar(),
+    );
+  }
+}
+
+// 🔥 WIDGET ARREGLADO - Muestra datos de la API correctamente
+class ReservaDetalleCard extends StatelessWidget {
+  final Map<String, dynamic> reservaData;
+
+  const ReservaDetalleCard({super.key, required this.reservaData});
+
+  @override
+  Widget build(BuildContext context) {
+    // Extraer datos de la API
+    final cliente = reservaData["cliente"] ?? {};
+    final nombreCliente =
+        "${cliente["nombres"] ?? ""} ${cliente["apellidos"] ?? ""}".trim();
+
+    final fechaHora = reservaData["fecha_hora"]?.toString() ?? "";
+    final fecha = fechaHora.isNotEmpty ? fechaHora.split(" ")[0] : "---";
+    final hora = fechaHora.split(" ").length > 1
+        ? fechaHora.split(" ")[1]
+        : "---";
+
+    final direccion = reservaData["d_encuentro"] ?? "Sin dirección";
+
+    return GestureDetector(
+      onTap: () {
+        // Convertir datos para la pantalla de detalle completo
+        final reservaDetalle = ReservaDetalle(
+          cliente: nombreCliente,
+          fechaReserva: fecha,
+          horaRecogida: hora,
+          direccionEncuentro: direccion,
+        );
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) =>
+                ReservaDetalleCompletoScreen(reserva: reservaDetalle),
+          ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.3),
+              spreadRadius: 1,
+              blurRadius: 3,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
         child: Column(
           children: [
-            const LogoHeader(titulo: 'Reservas', estiloLogin: false),
-            Expanded(
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _error != null
-                  ? Center(
-                child: Text(
-                  'Error: $_error',
-                  style: const TextStyle(color: Colors.red),
-                  textAlign: TextAlign.center,
+            // Header amarillo con "Reserva"
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              decoration: const BoxDecoration(
+                color: Color(0xFFFFD60A),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(8),
+                  topRight: Radius.circular(8),
                 ),
-              )
-                  : reservas.isEmpty
-                  ? const Center(child: Text('No hay reservas'))
-                  : RefreshIndicator(
-                onRefresh: _loadReservas,
-                child: ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: reservas.length,
-                  itemBuilder: (context, index) {
-                    final reserva = reservas[index];
-                    return Padding(
-                      padding:
-                      const EdgeInsets.only(bottom: 16.0),
-                      child: ReservaDetalleCard(reserva: reserva),
-                    );
-                  },
+              ),
+              child: const Text(
+                'Reserva',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.black,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
-            const CustomBottomNavBar(),
+
+            // Contenido de la reserva
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildInfoRow('Cliente:', nombreCliente),
+                  const SizedBox(height: 8),
+                  _buildInfoRow('Fecha de reserva:', fecha),
+                  const SizedBox(height: 8),
+                  _buildInfoRow('Hora Recogida:', hora),
+                  const SizedBox(height: 8),
+                  _buildInfoRow('Dirección de encuentro:', direccion),
+                  const SizedBox(height: 12),
+
+                  // Botón Ver Detalles
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () {
+                        final reservaDetalle = ReservaDetalle(
+                          cliente: nombreCliente,
+                          fechaReserva: fecha,
+                          horaRecogida: hora,
+                          direccionEncuentro: direccion,
+                        );
+
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ReservaDetalleCompletoScreen(
+                              reserva: reservaDetalle,
+                            ),
+                          ),
+                        );
+                      },
+                      child: const Text(
+                        'Ver Detalles >',
+                        style: TextStyle(
+                          color: Colors.blue,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
     );
   }
-}
 
-class ReservaDetalleCard extends StatelessWidget {
-  final ReservaDetalle reserva;
-
-  const ReservaDetalleCard({super.key, required this.reserva});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) =>
-                ReservaDetalleCompletoScreen(reserva: reserva),
+  Widget _buildInfoRow(String label, String value) {
+    return RichText(
+      text: TextSpan(
+        style: const TextStyle(fontSize: 14, color: Colors.black87),
+        children: [
+          TextSpan(
+            text: '$label ',
+            style: const TextStyle(fontWeight: FontWeight.w600),
           ),
-        );
-      },
-      child: Card(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        elevation: 3,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.amber,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Center(
-                  child: Text(
-                    'Reserva',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Cliente: ${reserva.cliente}',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 4),
-              Text('Fecha: ${reserva.fechaReserva}'),
-              const SizedBox(height: 4),
-              Text('Hora: ${reserva.horaRecogida}'),
-              const SizedBox(height: 4),
-              Text('Dirección: ${reserva.direccionEncuentro}'),
-              const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            ReservaDetalleCompletoScreen(reserva: reserva),
-                      ),
-                    );
-                  },
-                  child: const Text(
-                    'Ver Detalles >',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+          TextSpan(text: value),
+        ],
       ),
     );
   }

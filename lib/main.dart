@@ -3,6 +3,7 @@ import 'Views/Inicio/inicio_page.dart';
 import 'Views/Reservas/reservas_page.dart';
 import 'Views/Login/login_page.dart';
 import 'Views/Chats/chat_user_list_page.dart';
+import 'Views/Maps/maps_page.dart';
 import 'Views/Solicitudes/solicitudes_page.dart';
 import 'Views/Profile/profile_page.dart';
 import 'Utils/session_manager.dart';
@@ -46,6 +47,7 @@ class MyApp extends StatelessWidget {
         '/chat_users': (context) => ChatUserListPage(),
         '/solicitudes': (context) => const SolicitudesPage(),
         '/profile': (context) => const ProfilePage(),
+        '/maps': (context) => const MapsScreen(),
       },
     );
   }

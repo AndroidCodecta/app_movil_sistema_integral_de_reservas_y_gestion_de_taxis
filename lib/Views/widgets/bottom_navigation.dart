@@ -33,8 +33,10 @@ class CustomBottomNavBar extends StatelessWidget {
             case 3:
               Navigator.pushReplacementNamed(context, '/solicitudes');
               break;
-            // case 4:
-            //   Navigator.pushReplacementNamed(context, '/viaje');
+            case 4:
+              // Esta llamada busca la ruta '/maps'
+              Navigator.pushReplacementNamed(context, '/maps');
+              break;
           }
         },
         items: [
@@ -62,12 +64,12 @@ class CustomBottomNavBar extends StatelessWidget {
                 : const Icon(Icons.person_outline),
             label: 'Solicitudes',
           ),
-          // BottomNavigationBarItem(
-          //   icon: CustomBottomNavBar.getCurrentIndex(context) == 4
-          //       ? const Icon(Icons.map)
-          //       : const Icon(Icons.map_outlined),
-          //   label: 'Mapa',
-          // ),
+          BottomNavigationBarItem(
+            icon: CustomBottomNavBar.getCurrentIndex(context) == 4
+                ? const Icon(Icons.map)
+                : const Icon(Icons.map_outlined),
+            label: 'Mapa',
+          ),
         ],
       ),
     );
@@ -84,8 +86,8 @@ class CustomBottomNavBar extends StatelessWidget {
         return 2;
       case '/solicitudes':
         return 3;
-     // case '/viaje':
-       // return 4;
+      case '/maps':
+        return 4;
       default:
         return 0;
     }

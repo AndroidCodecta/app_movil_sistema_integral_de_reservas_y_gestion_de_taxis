@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../widgets/header.dart';
 import '../widgets/bottom_navigation.dart';
+import '../Maps/maps_page.dart';
 
 class ReservaDetalleCompletoScreen extends StatelessWidget {
   final dynamic reserva;
@@ -108,7 +109,7 @@ class ReservaDetalleCompletoScreen extends StatelessWidget {
                                   const SizedBox(width: 16),
                                   Column(
                                     crossAxisAlignment:
-                                    CrossAxisAlignment.start,
+                                        CrossAxisAlignment.start,
                                     children: const [
                                       Text('Placa: ABC-123'),
                                       Text('Marca: Mazda'),
@@ -121,6 +122,44 @@ class ReservaDetalleCompletoScreen extends StatelessWidget {
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // --- BOTÓN INICIAR VIAJE (NUEVO) ---
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      // Navega a MapsScreen
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const MapsScreen(),
+                        ),
+                      );
+                      // Nota: El contador de tiempo muerto (WAITING_INITIAL)
+                      // se inicia automáticamente en el initState de MapsScreen.
+                    },
+                    icon: const Icon(Icons.navigation_sharp, size: 28),
+                    label: const Text(
+                      'Iniciar Viaje',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color.fromARGB(
+                        255,
+                        0,
+                        0,
+                        0,
+                      ), // Color distintivo para acción
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(double.infinity, 55),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      elevation: 5,
                     ),
                   ),
                 ],
