@@ -2,196 +2,251 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../../Utils/session_manager.dart';
+import '../../Utils/reservas_service.dart';
 import '../Reservas/reservas_detalle.dart';
 import '../Reservas/reservas_page.dart';
 import '../widgets/header.dart';
 import '../widgets/bottom_navigation.dart';
 
-class HomeScreen extends StatefulWidget {
-  final List reservas;
+class ReservaCard extends StatelessWidget {
+  final ReservaDetalle reserva;
+  final int? reservaId;
+  final Map<String, dynamic>? vehiculoData;
 
-  const HomeScreen({super.key, required this.reservas});
+  const ReservaCard({
+    super.key,
+    required this.reserva,
+    this.reservaId,
+    this.vehiculoData, // NUEVO
+  });
 
-  @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen> {
-  List reservas = [];
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadDataFromPrefs();
-  }
-
-  Future<void> _loadDataFromPrefs() async {
-    final reservasData = await SessionManager.getReservas();
-    print(
-      'Reservas cargadas: $reservasData',
-    ); // Depuración: revisa en la consola
-    setState(() {
-      reservas = reservasData ?? [];
-      _isLoading = false;
-    });
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: RichText(
+        text: TextSpan(
+          style: const TextStyle(fontSize: 12, color: Colors.black87),
+          children: [
+            TextSpan(
+              text: label,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            TextSpan(text: ' ${value.isEmpty ? 'No especificado' : value}'),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[100],
-      body: Column(
-        children: [
-          const LogoHeader(titulo: 'Inicio', estiloLogin: false),
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  const StatusButtons(),
-                  const SizedBox(height: 16),
-                  if (reservas.isEmpty ||
-                      reservas.every(
-                            (r) =>
-                        r == null ||
-                            r is! Map ||
-                            r.isEmpty ||
-                            r['cliente'] == null ||
-                            r['fecha_hora'] == null ||
-                            r['d_encuentro'] == null,
-                      ))
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      margin: const EdgeInsets.only(bottom: 16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.grey.withOpacity(0.2),
-                            spreadRadius: 1,
-                            blurRadius: 3,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
+    if (reservaId == null) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.red[50],
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text("Error: ID de reserva faltante para ${reserva.cliente}"),
+      );
+    }
+
+    // Extraer datos del vehículo
+    final placa = vehiculoData?['placa']?.toString() ?? 'N/A';
+    final marca = vehiculoData?['marca']?.toString() ?? 'N/A';
+    final modelo = vehiculoData?['año_modelo']?.toString() ?? 'N/A';
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) =>
+                ReservaDetalleCompletoScreen(reservaId: reservaId!),
+          ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.3),
+              spreadRadius: 1,
+              blurRadius: 3,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  flex: 1,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF1C1C1C),
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(8),
                       ),
-                      child: const Center(
-                        child: Text(
-                          "No tienes reservas por el momento 🚗",
-                          style: TextStyle(
-                            fontSize: 14,
+                    ),
+                    child: const Text(
+                      'Auto',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+
+                Expanded(
+                  flex: 1,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    decoration: const BoxDecoration(
+                      color: Color.fromARGB(255, 255, 214, 10),
+                      borderRadius: BorderRadius.only(
+                        topRight: Radius.circular(8),
+                      ),
+                    ),
+                    child: const Text(
+                      'Reserva',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            // CONTENIDO
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 1,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 60,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Icon(
+                            Icons.directions_car,
                             color: Colors.grey,
-                            fontWeight: FontWeight.w500,
+                            size: 24,
                           ),
                         ),
-                      ),
-                    )
-                  else
-                    ...reservas
-                        .where(
-                          (r) =>
-                      r != null &&
-                          r is Map &&
-                          r.isNotEmpty &&
-                          r['cliente'] != null &&
-                          r['fecha_hora'] != null &&
-                          r['d_encuentro'] != null,
-                    )
-                        .map((r) {
-                      final cliente = r["cliente"] ?? {};
-                      final reserva = ReservaDetalle(
-                        cliente:
-                        "${cliente["nombres"] ?? ""} ${cliente["apellidos"] ?? ""}"
-                            .trim(),
-                        fechaReserva: (r["fecha_hora"] ?? "")
-                            .toString()
-                            .split(" ")[0],
-                        horaRecogida:
-                        (r["fecha_hora"] ?? "")
-                            .toString()
-                            .split(" ")
-                            .length >
-                            1
-                            ? r["fecha_hora"].split(" ")[1]
-                            : "",
-                        direccionEncuentro: r["d_encuentro"] ?? "",
-                      );
-                      return ReservaCard(reserva: reserva);
-                    })
-                  ,
+                        const SizedBox(height: 8),
+                        // Datos del vehículo
+                        Text(
+                          'Placa: $placa',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: Colors.black87,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          'Marca: $marca',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        Text(
+                          'Modelo: $modelo',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Toca para ver más detalles',
+                          style: TextStyle(
+                            fontSize: 9,
+                            color: Colors.blueGrey,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(width: 8),
+
+                  Expanded(
+                    flex: 1,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildInfoRow('Cliente:', reserva.cliente),
+                        _buildInfoRow('Fecha:', reserva.fechaReserva),
+                        _buildInfoRow('Hora:', reserva.horaRecogida),
+                        _buildInfoRow('Encuentro:', reserva.direccionEncuentro),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-      bottomNavigationBar: const CustomBottomNavBar(),
     );
   }
 }
 
-class StatusButtons extends StatelessWidget {
-  const StatusButtons({super.key});
+class _CardHeaderSegment extends StatelessWidget {
+  final String title;
+  final Color color;
+  final bool isLeft;
+  final Color textColor;
+
+  const _CardHeaderSegment({
+    required this.title,
+    required this.color,
+    required this.isLeft,
+    required this.textColor,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: const BoxDecoration(
-            color: Color.fromRGBO(255, 214, 10, 1),
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(12),
-              topRight: Radius.circular(12),
-            ),
-          ),
-          child: const Text(
-            'Estado',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.black,
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.only(
+            topLeft: isLeft ? const Radius.circular(8) : Radius.zero,
+            topRight: isLeft ? Radius.zero : const Radius.circular(8),
           ),
         ),
-        const SizedBox(height: 8),
-        const EstadoChoferButton(),
-        const SizedBox(height: 8),
-        GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const ReservasScreen()),
-            );
-          },
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            decoration: const BoxDecoration(
-              color: Color.fromRGBO(255, 214, 10, 1),
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(12),
-                topRight: Radius.circular(12),
-              ),
-            ),
-            child: const Text(
-              'Resumen de hoy',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.black,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
+        child: Text(
+          title,
+          textAlign: TextAlign.center,
+          style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
         ),
-      ],
+      ),
     );
   }
 }
@@ -214,15 +269,19 @@ class _EstadoChoferButtonState extends State<EstadoChoferButton> {
   }
 
   Future<void> _fetchEstado() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
 
     final token = await SessionManager.getToken();
     final userId = await SessionManager.getUserId();
 
     if (token == null || userId == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("No hay sesión iniciada")));
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("No hay sesión iniciada")));
+        setState(() => _isLoading = false);
+      }
       return;
     }
 
@@ -243,24 +302,28 @@ class _EstadoChoferButtonState extends State<EstadoChoferButton> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final estado = data["data"]?["estado"];
-        setState(() => activo = estado == 1);
+        if (mounted) setState(() => activo = estado == 1);
       } else if (response.statusCode == 404) {
-        setState(() => activo = false);
+        if (mounted) setState(() => activo = false);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              "Error ${response.statusCode}: no se pudo obtener estado",
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                "Error ${response.statusCode}: no se pudo obtener estado",
+              ),
             ),
-          ),
-        );
+          );
+        }
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Error de conexión: $e")));
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Error de conexión: $e")));
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -269,13 +332,19 @@ class _EstadoChoferButtonState extends State<EstadoChoferButton> {
       setState(() {
         activo = !activo!;
       });
+      print(
+        'Simulando envío de estado a API: ${!activo! ? 'Activo' : 'Inactivo'}',
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const CircularProgressIndicator();
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (activo == null) {
+      return const Text("Estado no disponible. Intente de nuevo.");
     }
 
     return GestureDetector(
@@ -305,170 +374,237 @@ class _EstadoChoferButtonState extends State<EstadoChoferButton> {
   }
 }
 
-class ReservaCard extends StatelessWidget {
-  final ReservaDetalle reserva;
-
-  const ReservaCard({super.key, required this.reserva});
+class StatusButtons extends StatelessWidget {
+  const StatusButtons({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) =>
-                ReservaDetalleCompletoScreen(reserva: reserva),
+    Widget _buildSectionTitle(
+      String title, {
+      VoidCallback? onTap,
+      bool isTop = true,
+    }) {
+      return GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: const Color.fromRGBO(255, 214, 10, 1),
+            borderRadius: BorderRadius.only(
+              topLeft: isTop ? const Radius.circular(12) : Radius.zero,
+              topRight: isTop ? const Radius.circular(12) : Radius.zero,
+            ),
           ),
-        );
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.3),
-              spreadRadius: 1,
-              blurRadius: 3,
-              offset: const Offset(0, 2),
+          child: Text(
+            title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.black,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
             ),
-          ],
+          ),
         ),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF1C1C1C),
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(8),
-                      ),
-                    ),
-                    child: const Text(
-                      'Auto',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    decoration: const BoxDecoration(
-                      color: Color.fromARGB(255, 255, 214, 10),
-                      borderRadius: BorderRadius.only(
-                        topRight: Radius.circular(8),
-                      ),
-                    ),
-                    child: const Text(
-                      'Reserva',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Column(
-                    children: [
-                      Container(
-                        width: 60,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[300],
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Icon(
-                          Icons.directions_car,
-                          color: Colors.grey,
-                          size: 24,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
-                          Text(
-                            'Placa: -',
-                            style: TextStyle(fontSize: 10, color: Colors.grey),
-                          ),
-                          Text(
-                            'Marca: -',
-                            style: TextStyle(fontSize: 10, color: Colors.grey),
-                          ),
-                          Text(
-                            'Modelo: -',
-                            style: TextStyle(fontSize: 10, color: Colors.grey),
-                          ),
-                          Text(
-                            'Toca para ver más detalles',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Colors.blueGrey,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildInfoRow('Cliente:', reserva.cliente),
-                        _buildInfoRow(
-                          'Fecha de reserva:',
-                          reserva.fechaReserva,
-                        ),
-                        _buildInfoRow('Hora Recogida:', reserva.horaRecogida),
-                        _buildInfoRow(
-                          'Dirección de encuentro:',
-                          reserva.direccionEncuentro,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+      );
+    }
+
+    return Column(
+      children: [
+        _buildSectionTitle('Estado'),
+        const SizedBox(height: 8),
+        const EstadoChoferButton(),
+        const SizedBox(height: 8),
+        _buildSectionTitle(
+          'Resumen de hoy',
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const ReservasScreen()),
+            );
+          },
+          isTop: true,
         ),
-      ),
+      ],
     );
   }
+}
 
-  Widget _buildInfoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: RichText(
-        text: TextSpan(
-          style: const TextStyle(fontSize: 12, color: Colors.black87),
-          children: [
-            TextSpan(
-              text: label,
-              style: const TextStyle(fontWeight: FontWeight.w600),
+// ======================================================================
+// PANTALLA PRINCIPAL (LÓGICA CORREGIDA PARA FORZAR CARGA DESDE API)
+// ======================================================================
+
+class HomeScreen extends StatefulWidget {
+  final List reservas;
+
+  const HomeScreen({super.key, required this.reservas});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  // Lista que contendrá los Map<String, dynamic> de las reservas
+  List<dynamic> _rawReservas = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    // Priorizamos la carga de la API para asegurar la frescura de los datos
+    _loadDataFromApiAndPrefs();
+  }
+
+  // FUNCIÓN CLAVE CORREGIDA: Fuerza la carga desde la API y actualiza la UI
+  Future<void> _loadDataFromApiAndPrefs() async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+
+    List<dynamic> fetchedReservas = [];
+
+    try {
+      // 1. Intentar cargar la data FRESCA desde la API
+      // Esta función ya guarda la data en SharedPreferences (según tu SessionManager)
+      fetchedReservas = await SessionManager.fetchReservasFromApi();
+    } catch (e) {
+      print(
+        'Fallo al obtener reservas de la API: $e. Intentando cargar desde cache.',
+      );
+      // 2. Si falla la API, cargamos lo que estaba guardado previamente (cache)
+      fetchedReservas = await SessionManager.getReservas();
+      if (mounted && fetchedReservas.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Error de conexión. Mostrando datos antiguos (o ninguno).',
             ),
-            TextSpan(text: ' $value'),
-          ],
-        ),
+          ),
+        );
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _rawReservas = fetchedReservas;
+        _isLoading = false;
+      });
+    }
+  }
+
+  // Usa la lista de tarjetas construida para determinar si hay reservas válidas.
+  bool get _shouldShowNoReservasMessage {
+    return _buildReservaCards().isEmpty;
+  }
+
+  // Genera las tarjetas de reserva mapeando los datos raw
+  List<Widget> _buildReservaCards() {
+    final validReservas = _rawReservas.where((r) {
+      return r != null &&
+          r is Map &&
+          r.isNotEmpty &&
+          r['id'] != null &&
+          r['cliente'] != null &&
+          r['fecha_hora'] != null &&
+          r['d_encuentro'] != null;
+    }).toList();
+
+    if (validReservas.isEmpty) {
+      return [];
+    }
+
+    return validReservas
+        .map((r) {
+          final cliente = r["cliente"] ?? {};
+          final vehiculo = r["vehiculo"] ?? {};
+
+          final int? idReserva = r["id"] is int
+              ? r["id"]
+              : int.tryParse(r["id"]?.toString() ?? '');
+
+          if (idReserva == null) {
+            return Container();
+          }
+
+          final reserva = ReservaDetalle(
+            cliente: "${cliente["nombres"] ?? ""} ${cliente["apellidos"] ?? ""}"
+                .trim(),
+            fechaReserva: (r["fecha_hora"] ?? "").toString().split(" ")[0],
+            horaRecogida:
+                (r["fecha_hora"] ?? "").toString().split(" ").length > 1
+                ? r["fecha_hora"].split(" ")[1]
+                : "",
+            direccionEncuentro: r["d_encuentro"] ?? "",
+          );
+
+          return ReservaCard(
+            key: ValueKey(idReserva),
+            reserva: reserva,
+            reservaId: idReserva,
+            vehiculoData: vehiculo,
+          );
+        })
+        .whereType<ReservaCard>()
+        .toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.grey[100],
+      body: Column(
+        children: [
+          const LogoHeader(titulo: 'Inicio', estiloLogin: false),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : RefreshIndicator(
+                    onRefresh: _loadDataFromApiAndPrefs,
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(16.0),
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: Column(
+                        children: [
+                          const StatusButtons(),
+                          const SizedBox(height: 16),
+
+                          if (_shouldShowNoReservasMessage)
+                            Container(
+                              padding: const EdgeInsets.all(20),
+                              margin: const EdgeInsets.only(bottom: 16),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.grey.withOpacity(0.2),
+                                    spreadRadius: 1,
+                                    blurRadius: 3,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: const Center(
+                                child: Text(
+                                  "No tienes reservas por el momento 🚗\nDesliza hacia abajo para buscar nuevas reservas.",
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            )
+                          else
+                            ..._buildReservaCards(),
+                        ],
+                      ),
+                    ),
+                  ),
+          ),
+        ],
       ),
+      bottomNavigationBar: const CustomBottomNavBar(),
     );
   }
 }

@@ -1,24 +1,11 @@
-import 'reservas_detalle.dart';
 import 'package:flutter/material.dart';
-import '../../Utils/session_manager.dart';
+import '/utils/reservas_service.dart';
+import 'reservas_detalle.dart'; // Importa la nueva pantalla de detalle (se asume que existe)
 import '../widgets/header.dart';
 import '../widgets/bottom_navigation.dart';
 
-class ReservaDetalle {
-  final String cliente;
-  final String fechaReserva;
-  final String horaRecogida;
-  final String direccionEncuentro;
+// --- WIDGET PRINCIPAL: ReservasScreen ---
 
-  ReservaDetalle({
-    required this.cliente,
-    required this.fechaReserva,
-    required this.horaRecogida,
-    required this.direccionEncuentro,
-  });
-}
-
-// Widget principal de la pantalla Reservas
 class ReservasScreen extends StatefulWidget {
   const ReservasScreen({super.key});
 
@@ -27,7 +14,7 @@ class ReservasScreen extends StatefulWidget {
 }
 
 class _ReservasScreenState extends State<ReservasScreen> {
-  List reservas = [];
+  List<Map<String, dynamic>> reservas = [];
   bool _isLoading = true;
 
   @override
@@ -37,11 +24,18 @@ class _ReservasScreenState extends State<ReservasScreen> {
   }
 
   Future<void> _loadReservas() async {
-    final reservasData = await SessionManager.getReservas();
+    final reservasData = await ReservasService.fetchReservasList();
     setState(() {
       reservas = reservasData;
       _isLoading = false;
     });
+  }
+
+  // Recarga la lista si la pantalla de detalle devuelve 'true'
+  void _onDetailClosed(dynamic result) {
+    if (result == true) {
+      _loadReservas();
+    }
   }
 
   @override
@@ -52,49 +46,36 @@ class _ReservasScreenState extends State<ReservasScreen> {
         children: [
           const LogoHeader(titulo: 'Reservas', estiloLogin: false),
 
-          // Lista de reservas
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : reservas.isEmpty
-                ? Center(
-                    child: Container(
-                      padding: const EdgeInsets.all(20),
-                      margin: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.grey.withOpacity(0.2),
-                            spreadRadius: 1,
-                            blurRadius: 3,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: const Text(
-                        "No tienes reservas 🚗",
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
+                ? const Center(
+                    child: CircularProgressIndicator(color: Color(0xFFFFD60A)),
                   )
-                : SingleChildScrollView(
+                : reservas.isEmpty
+                ? _buildEmptyState()
+                : ListView.builder(
                     padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      children: reservas
-                          .where((r) => r != null && r is Map && r.isNotEmpty)
-                          .map(
-                            (reservaData) => ReservaDetalleCard(
-                              reservaData: reservaData as Map<String, dynamic>,
+                    itemCount: reservas.length,
+                    itemBuilder: (context, index) {
+                      final reservaData = reservas[index];
+                      final int reservaId = reservaData["id"] ?? 0;
+
+                      return ReservaDetalleCard(
+                        reservaData: reservaData,
+                        onTap: (id) async {
+                          // Navegación con ID
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              // Usamos el ID para cargar el detalle
+                              builder: (context) =>
+                                  ReservaDetalleCompletoScreen(reservaId: id),
                             ),
-                          )
-                          .toList(),
-                    ),
+                          );
+                          _onDetailClosed(result);
+                        },
+                      );
+                    },
                   ),
           ),
         ],
@@ -102,17 +83,52 @@ class _ReservasScreenState extends State<ReservasScreen> {
       bottomNavigationBar: const CustomBottomNavBar(),
     );
   }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        margin: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.2),
+              spreadRadius: 1,
+              blurRadius: 3,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: const Text(
+          "No tienes reservas 🚗",
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.grey,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-// 🔥 WIDGET ARREGLADO - Muestra datos de la API correctamente
+// --- WIDGET DE TARJETA: ReservaDetalleCard ---
+
 class ReservaDetalleCard extends StatelessWidget {
   final Map<String, dynamic> reservaData;
+  final Function(int id) onTap; // Callback que recibe el ID
 
-  const ReservaDetalleCard({super.key, required this.reservaData});
+  const ReservaDetalleCard({
+    super.key,
+    required this.reservaData,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    // Extraer datos de la API
+    final int id = reservaData["id"] ?? 0;
     final cliente = reservaData["cliente"] ?? {};
     final nombreCliente =
         "${cliente["nombres"] ?? ""} ${cliente["apellidos"] ?? ""}".trim();
@@ -120,29 +136,17 @@ class ReservaDetalleCard extends StatelessWidget {
     final fechaHora = reservaData["fecha_hora"]?.toString() ?? "";
     final fecha = fechaHora.isNotEmpty ? fechaHora.split(" ")[0] : "---";
     final hora = fechaHora.split(" ").length > 1
-        ? fechaHora.split(" ")[1]
+        ? fechaHora.split(" ")[1].substring(0, 5)
         : "---";
 
     final direccion = reservaData["d_encuentro"] ?? "Sin dirección";
+    final vehiculo = reservaData["vehiculo"] ?? {};
+    final placa = vehiculo["placa"]?.toString() ?? "N/A";
+
+    if (id == 0) return const SizedBox.shrink();
 
     return GestureDetector(
-      onTap: () {
-        // Convertir datos para la pantalla de detalle completo
-        final reservaDetalle = ReservaDetalle(
-          cliente: nombreCliente,
-          fechaReserva: fecha,
-          horaRecogida: hora,
-          direccionEncuentro: direccion,
-        );
-
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) =>
-                ReservaDetalleCompletoScreen(reserva: reservaDetalle),
-          ),
-        );
-      },
+      onTap: () => onTap(id),
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
         decoration: BoxDecoration(
@@ -159,7 +163,7 @@ class ReservaDetalleCard extends StatelessWidget {
         ),
         child: Column(
           children: [
-            // Header amarillo con "Reserva"
+            // Header amarillo
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 12),
@@ -170,10 +174,10 @@ class ReservaDetalleCard extends StatelessWidget {
                   topRight: Radius.circular(8),
                 ),
               ),
-              child: const Text(
-                'Reserva',
+              child: Text(
+                'Reserva N° 00$id',
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   color: Colors.black,
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -189,34 +193,15 @@ class ReservaDetalleCard extends StatelessWidget {
                 children: [
                   _buildInfoRow('Cliente:', nombreCliente),
                   const SizedBox(height: 8),
-                  _buildInfoRow('Fecha de reserva:', fecha),
-                  const SizedBox(height: 8),
-                  _buildInfoRow('Hora Recogida:', hora),
+                  _buildInfoRow('Fecha y Hora:', '$fecha - $hora'),
                   const SizedBox(height: 8),
                   _buildInfoRow('Dirección de encuentro:', direccion),
                   const SizedBox(height: 12),
 
-                  // Botón Ver Detalles
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      onPressed: () {
-                        final reservaDetalle = ReservaDetalle(
-                          cliente: nombreCliente,
-                          fechaReserva: fecha,
-                          horaRecogida: hora,
-                          direccionEncuentro: direccion,
-                        );
-
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ReservaDetalleCompletoScreen(
-                              reserva: reservaDetalle,
-                            ),
-                          ),
-                        );
-                      },
+                      onPressed: () => onTap(id),
                       child: const Text(
                         'Ver Detalles >',
                         style: TextStyle(
@@ -249,4 +234,20 @@ class ReservaDetalleCard extends StatelessWidget {
       ),
     );
   }
+}
+
+// --- CLASE OBSOLETA ---
+// Mantener solo si es usada por un sistema de navegación antiguo, de lo contrario, eliminar.
+class ReservaDetalle {
+  final String cliente;
+  final String fechaReserva;
+  final String horaRecogida;
+  final String direccionEncuentro;
+
+  ReservaDetalle({
+    required this.cliente,
+    required this.fechaReserva,
+    required this.horaRecogida,
+    required this.direccionEncuentro,
+  });
 }
