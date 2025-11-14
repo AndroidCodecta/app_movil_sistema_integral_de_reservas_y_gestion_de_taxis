@@ -21,7 +21,11 @@ class _SolicitudesPageState extends State<SolicitudesPage> {
     _loadSolicitudes();
   }
 
+  // Función de carga de solicitudes que se usa para la carga inicial y el refresh
   Future<void> _loadSolicitudes() async {
+    // Simula un tiempo de carga breve para que el RefreshIndicator se vea
+    await Future.delayed(const Duration(milliseconds: 300));
+
     final data = await SessionManager.getSolicitudes();
     List<Map<String, dynamic>> registros = [];
 
@@ -49,9 +53,11 @@ class _SolicitudesPageState extends State<SolicitudesPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(estado == 1
-              ? 'Solicitud aceptada correctamente'
-              : 'Solicitud rechazada'),
+          content: Text(
+            estado == 1
+                ? 'Solicitud aceptada correctamente'
+                : 'Solicitud rechazada',
+          ),
           backgroundColor: estado == 1 ? Colors.green : Colors.red,
         ),
       );
@@ -59,16 +65,39 @@ class _SolicitudesPageState extends State<SolicitudesPage> {
       // eliminar la solicitud de la lista local
       setState(() {
         solicitudes.removeWhere(
-                (s) => s['id'] == solicitudChoferId || s['solicitud_chofer_id'] == solicitudChoferId);
+          (s) =>
+              s['id'] == solicitudChoferId ||
+              s['solicitud_chofer_id'] == solicitudChoferId,
+        );
       });
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
       );
     }
+  }
+
+  // Widget para el estado de lista vacía que permite recargar
+  // Se usa LayoutBuilder para calcular la altura restante de forma dinámica y correcta.
+  Widget _buildEmptyStateWithRefresh(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: _loadSolicitudes, // Conecta la función de recarga
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // El SingleChildScrollView asegura que la física del scroll sea siempre activa
+          return SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                // Usa la altura disponible para centrar correctamente el mensaje
+                minHeight: constraints.maxHeight,
+              ),
+              child: const Center(child: Text('No hay solicitudes')),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   @override
@@ -83,48 +112,62 @@ class _SolicitudesPageState extends State<SolicitudesPage> {
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : solicitudes.isEmpty
-                  ? const Center(child: Text('No hay solicitudes'))
-                  : ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: solicitudes.length,
-                itemBuilder: (context, index) {
-                  final s = solicitudes[index];
-                  final reserva = s['reserva'] ?? {};
-                  final cliente = reserva['cliente'] ?? {};
-                  final idSolicitud = s['id'] ?? s['solicitud_chofer_id'] ?? 0;
+                  ? _buildEmptyStateWithRefresh(
+                      context,
+                    ) // Usa la función corregida
+                  : RefreshIndicator(
+                      onRefresh:
+                          _loadSolicitudes, // Implementación del RefreshIndicator
+                      child: ListView.builder(
+                        physics:
+                            const AlwaysScrollableScrollPhysics(), // Esencial para el RefreshIndicator
+                        padding: const EdgeInsets.all(16),
+                        itemCount: solicitudes.length,
+                        itemBuilder: (context, index) {
+                          final s = solicitudes[index];
+                          final reserva = s['reserva'] ?? {};
+                          final cliente = reserva['cliente'] ?? {};
+                          final idSolicitud =
+                              s['id'] ?? s['solicitud_chofer_id'] ?? 0;
 
-                  final nombreCliente =
-                  '${cliente['nombres'] ?? ''} ${cliente['apellidos'] ?? ''}'
-                      .trim()
-                      .isEmpty
-                      ? 'Usuario'
-                      : '${cliente['nombres']} ${cliente['apellidos']}';
+                          final nombreCliente =
+                              '${cliente['nombres'] ?? ''} ${cliente['apellidos'] ?? ''}'
+                                  .trim()
+                                  .isEmpty
+                              ? 'Usuario'
+                              : '${cliente['nombres']} ${cliente['apellidos']}';
 
-                  final fecha = reserva['fecha_hora']?.toString() ?? '---';
-                  final espera = reserva['tiempo_espera']?.toString() ?? '---';
-                  final direccion =
-                      reserva['d_encuentro']?.toString() ?? '---';
+                          final fechaCompleta =
+                              reserva['fecha_hora']?.toString() ?? '---';
+                          final fecha = fechaCompleta.split(' ')[0];
+                          final hora = fechaCompleta.split(' ').length > 1
+                              ? fechaCompleta.split(' ')[1]
+                              : '---';
 
-                  return Column(
-                    children: [
-                      _SolicitudCard(
-                        cliente: nombreCliente,
-                        fecha: fecha.split(' ')[0],
-                        hora: fecha.split(' ').length > 1
-                            ? fecha.split(' ')[1]
-                            : '---',
-                        espera: espera,
-                        direccion: direccion,
-                        onAceptar: () =>
-                            _responderSolicitud(idSolicitud, 1),
-                        onRechazar: () =>
-                            _responderSolicitud(idSolicitud, 0),
+                          final espera =
+                              reserva['tiempo_espera']?.toString() ?? '---';
+                          final direccion =
+                              reserva['d_encuentro']?.toString() ?? '---';
+
+                          return Column(
+                            children: [
+                              _SolicitudCard(
+                                cliente: nombreCliente,
+                                fecha: fecha,
+                                hora: hora,
+                                espera: espera,
+                                direccion: direccion,
+                                onAceptar: () =>
+                                    _responderSolicitud(idSolicitud, 1),
+                                onRechazar: () =>
+                                    _responderSolicitud(idSolicitud, 0),
+                              ),
+                              const SizedBox(height: 16),
+                            ],
+                          );
+                        },
                       ),
-                      const SizedBox(height: 16),
-                    ],
-                  );
-                },
-              ),
+                    ),
             ),
             const CustomBottomNavBar(),
           ],
@@ -135,6 +178,8 @@ class _SolicitudesPageState extends State<SolicitudesPage> {
 }
 
 class _SolicitudCard extends StatelessWidget {
+  // ... (Código de _SolicitudCard sin cambios)
+  // Este código es idéntico a tu original
   final String cliente;
   final String fecha;
   final String hora;
@@ -178,17 +223,24 @@ class _SolicitudCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Text('Cliente: $cliente',
-                style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text(
+              'Cliente: $cliente',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 4),
             Text('Fecha de reserva: $fecha'),
             const SizedBox(height: 4),
             Row(children: [Text('Hora Recogida: $hora')]),
             Row(
               children: [
-                const Text('Tiempo de espera: ',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                Text(espera, style: const TextStyle(fontWeight: FontWeight.bold)),
+                const Text(
+                  'Tiempo de espera: ',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  espera,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
               ],
             ),
             const SizedBox(height: 4),
@@ -203,7 +255,8 @@ class _SolicitudCard extends StatelessWidget {
                       backgroundColor: Colors.green,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16)),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                     ),
                     onPressed: onAceptar,
                     child: const Text('Aceptar'),
@@ -216,7 +269,8 @@ class _SolicitudCard extends StatelessWidget {
                       backgroundColor: Colors.red,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16)),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                     ),
                     onPressed: onRechazar,
                     child: const Text('Rechazar'),

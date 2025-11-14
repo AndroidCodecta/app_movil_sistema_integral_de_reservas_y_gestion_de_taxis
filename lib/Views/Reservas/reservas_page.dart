@@ -23,6 +23,7 @@ class _ReservasScreenState extends State<ReservasScreen> {
     _loadReservas();
   }
 
+  // Función de carga de datos que se usa para la carga inicial y el refresh
   Future<void> _loadReservas() async {
     final reservasData = await ReservasService.fetchReservasList();
     setState(() {
@@ -52,30 +53,53 @@ class _ReservasScreenState extends State<ReservasScreen> {
                     child: CircularProgressIndicator(color: Color(0xFFFFD60A)),
                   )
                 : reservas.isEmpty
-                ? _buildEmptyState()
-                : ListView.builder(
-                    padding: const EdgeInsets.all(16.0),
-                    itemCount: reservas.length,
-                    itemBuilder: (context, index) {
-                      final reservaData = reservas[index];
-                      final int reservaId = reservaData["id"] ?? 0;
+                // ----------------------------------------------------
+                // IMPLEMENTACIÓN DEL REFRESHINDICATOR para ESTADO VACÍO
+                // Requiere SingleChildScrollView para deslizar
+                // ----------------------------------------------------
+                ? RefreshIndicator(
+                    onRefresh: _loadReservas,
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: SizedBox(
+                        height:
+                            MediaQuery.of(context).size.height -
+                            200, // Altura para centrar y permitir deslizar
+                        child: _buildEmptyState(),
+                      ),
+                    ),
+                  )
+                // ----------------------------------------------------
+                // IMPLEMENTACIÓN DEL REFRESHINDICATOR para la LISTA
+                // ----------------------------------------------------
+                : RefreshIndicator(
+                    onRefresh: _loadReservas, // <-- Aquí conectamos la función
+                    child: ListView.builder(
+                      // La física es crucial para que se pueda deslizar y recargar
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(16.0),
+                      itemCount: reservas.length,
+                      itemBuilder: (context, index) {
+                        final reservaData = reservas[index];
+                        final int reservaId = reservaData["id"] ?? 0;
 
-                      return ReservaDetalleCard(
-                        reservaData: reservaData,
-                        onTap: (id) async {
-                          // Navegación con ID
-                          final result = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              // Usamos el ID para cargar el detalle
-                              builder: (context) =>
-                                  ReservaDetalleCompletoScreen(reservaId: id),
-                            ),
-                          );
-                          _onDetailClosed(result);
-                        },
-                      );
-                    },
+                        return ReservaDetalleCard(
+                          reservaData: reservaData,
+                          onTap: (id) async {
+                            // Navegación con ID
+                            final result = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                // Usamos el ID para cargar el detalle
+                                builder: (context) =>
+                                    ReservaDetalleCompletoScreen(reservaId: id),
+                              ),
+                            );
+                            _onDetailClosed(result);
+                          },
+                        );
+                      },
+                    ),
                   ),
           ),
         ],
@@ -84,37 +108,18 @@ class _ReservasScreenState extends State<ReservasScreen> {
     );
   }
 
+  // --- WIDGET DE ESTADO VACÍO CORREGIDO (Estilo por defecto) ---
   Widget _buildEmptyState() {
-    return Center(
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        margin: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.2),
-              spreadRadius: 1,
-              blurRadius: 3,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: const Text(
-          "No tienes reservas 🚗",
-          style: TextStyle(
-            fontSize: 14,
-            color: Colors.grey,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ),
+    return const Center(
+      // Usamos el estilo por defecto, como en SolicitudesPage
+      child: Text("No tienes reservas 🚗"),
     );
   }
+
+  // -----------------------------------------------------------------
 }
 
-// --- WIDGET DE TARJETA: ReservaDetalleCard ---
+// --- WIDGET DE TARJETA: ReservaDetalleCard (Sin cambios) ---
 
 class ReservaDetalleCard extends StatelessWidget {
   final Map<String, dynamic> reservaData;
@@ -236,8 +241,7 @@ class ReservaDetalleCard extends StatelessWidget {
   }
 }
 
-// --- CLASE OBSOLETA ---
-// Mantener solo si es usada por un sistema de navegación antiguo, de lo contrario, eliminar.
+// --- CLASE OBSOLETA (Mantener o eliminar según tu proyecto) ---
 class ReservaDetalle {
   final String cliente;
   final String fechaReserva;

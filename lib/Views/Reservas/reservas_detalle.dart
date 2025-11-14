@@ -81,6 +81,7 @@ class _ReservaDetalleCompletoScreenState
     _fetchDetail();
   }
 
+  // Función de carga de datos que se usa para la carga inicial y el refresh
   Future<void> _fetchDetail() async {
     setState(() {
       _isLoading = true;
@@ -306,16 +307,25 @@ class _ReservaDetalleCompletoScreenState
                       ],
                     ),
                   )
-                : SingleChildScrollView(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (_reservaDetalle != null)
-                          _buildDetailContainer(_reservaDetalle!),
-                        const SizedBox(height: 20),
-                        _buildActionButton(context),
-                      ],
+                // ----------------------------------------------------
+                // IMPLEMENTACIÓN DEL REFRESHINDICATOR
+                // ----------------------------------------------------
+                : RefreshIndicator(
+                    onRefresh:
+                        _fetchDetail, // <-- Conecta la función de recarga
+                    child: SingleChildScrollView(
+                      // Asegura que siempre se puede deslizar para recargar
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (_reservaDetalle != null)
+                            _buildDetailContainer(_reservaDetalle!),
+                          const SizedBox(height: 20),
+                          _buildActionButton(context),
+                        ],
+                      ),
                     ),
                   ),
           ),

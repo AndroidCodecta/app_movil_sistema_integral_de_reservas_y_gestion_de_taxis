@@ -140,7 +140,97 @@ class _MapsScreenState extends State<MapsScreen> {
     }
   }
 
-  // --- Métodos de Construcción de Widgets (actualizados) ---
+  // ==========================================================
+  // MÉTODO: POP-UP DE CONFIRMACIÓN (ACTUALIZADO)
+  // ==========================================================
+  Future<void> _showConfirmationDialog() async {
+    // Si ya estamos en el último estado (TRIP_FINISHED), no hacemos nada
+    if (_currentStatus == TripStatus.TRIP_FINISHED) return;
+
+    final nextStatusDescription =
+        _tripTimeline[_currentStatus.index + 1].description;
+
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false, // El usuario debe tocar un botón
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Confirmar Avance'),
+          content: SingleChildScrollView(
+            child: ListBody(
+              children: <Widget>[
+                const Text('¿Estás seguro de avanzar al siguiente paso?'),
+                const SizedBox(height: 8),
+                Text(
+                  'Próximo estado: "$nextStatusDescription"',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Esta acción registrará el tiempo y no se podrá deshacer.',
+                ),
+              ],
+            ),
+          ),
+          // MODIFICACIÓN: Se usa un Row y ElevatedButtons/TextButtons estilizados en Actions
+          actionsAlignment: MainAxisAlignment.end,
+          actions: <Widget>[
+            // Botón CANCELAR (TextButton estilizado)
+            TextButton(
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: BorderSide(color: Colors.grey.shade400, width: 1.5),
+                ),
+                foregroundColor: Colors.black87, // Color del texto
+              ),
+              child: const Text(
+                'Cancelar',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              onPressed: () {
+                // Lógica de cierre para CANCELAR: YA IMPLEMENTADO
+                Navigator.of(context).pop(); // Cierra el pop-up
+              },
+            ),
+            const SizedBox(width: 8),
+            // Botón AVANZAR (ElevatedButton)
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                backgroundColor: Colors.blue.shade700, // Fondo sólido azul
+                foregroundColor: Colors.white, // Texto blanco
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8), // Border radius
+                ),
+              ),
+              child: const Text(
+                'Avanzar',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              onPressed: () {
+                // Lógica de cierre y avance para AVANZAR: YA IMPLEMENTADO
+                Navigator.of(context).pop(); // Cierra el pop-up
+                _advanceTripStatus(); // Ejecuta la lógica de avance
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // --- Métodos de Construcción de Widgets (sin cambios) ---
 
   @override
   Widget build(BuildContext context) {
@@ -292,34 +382,40 @@ class _MapsScreenState extends State<MapsScreen> {
     );
   }
 
-  // --- Nuevo Widget: Botón de Acción Único ---
+  // --- Nuevo Widget: Botón de Acción Único (sin cambios, ya llama al pop-up) ---
   Widget _buildSingleActionButton() {
     String buttonText;
     Color buttonColor;
     bool isEnabled = true;
+    VoidCallback? onPressedAction;
 
     switch (_currentStatus) {
       case TripStatus.WAITING_INITIAL:
         buttonText = '1. Confirmar Llegada a Punto de Encuentro';
         buttonColor = Colors.blue.shade700;
+        onPressedAction = _showConfirmationDialog; // Llama al Pop-up
         break;
       case TripStatus.ARRIVED_PICKUP:
         buttonText = '2. Iniciar Viaje a Destino';
         buttonColor = Colors.green.shade700;
+        onPressedAction = _showConfirmationDialog; // Llama al Pop-up
         break;
       case TripStatus.IN_TRANSIT:
         buttonText = '3. Confirmar Destino Llegado';
         buttonColor = Colors.purple.shade700;
+        onPressedAction = _showConfirmationDialog; // Llama al Pop-up
         break;
       case TripStatus.TRIP_FINISHED:
         buttonText = 'VIAJE FINALIZADO';
         buttonColor = Colors.grey;
         isEnabled = false;
+        onPressedAction = null;
         break;
     }
 
+    // Usa onPressedAction si está habilitado, sino es null.
     return ElevatedButton(
-      onPressed: isEnabled ? _advanceTripStatus : null,
+      onPressed: isEnabled ? onPressedAction : null,
       style: ElevatedButton.styleFrom(
         minimumSize: const Size(double.infinity, 55),
         backgroundColor: buttonColor,
@@ -333,7 +429,7 @@ class _MapsScreenState extends State<MapsScreen> {
     );
   }
 
-  // --- Nuevo Widget: Línea de Tiempo de Eventos ---
+  // --- Nuevo Widget: Línea de Tiempo de Eventos (sin cambios) ---
   Widget _buildTimeline() {
     return Container(
       decoration: BoxDecoration(
