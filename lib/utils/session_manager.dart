@@ -3,8 +3,16 @@ import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 
+// ====================== ENUM PARA FASES DEL VIAJE ======================
+enum TripStatus {
+  WAITING_INITIAL, // 0 - Asignado, yendo al punto de encuentro
+  ARRIVED_PICKUP, // 1 - Llegó al punto de encuentro
+  IN_TRANSIT, // 2 - Cliente arriba, yendo al destino
+  TRIP_FINISHED, // 3 - Viaje terminado
+}
+
 class SessionManager {
-  // ===== GUARDAR SESIÓN =====
+  // ===== GUARDAR SESIÓN (LOGIN) =====
   static Future<void> saveSession({
     required String token,
     required int userId,
@@ -13,10 +21,8 @@ class SessionManager {
     List<dynamic>? solicitudes,
   }) async {
     final prefs = await SharedPreferences.getInstance();
-
     await prefs.setString("auth_token", token);
     await prefs.setInt("user_id", userId);
-
     if (user != null) {
       await prefs.setString("user", jsonEncode(user));
     }
@@ -28,7 +34,6 @@ class SessionManager {
     }
   }
 
-  // ===== GUARDADO RÁPIDO (no bloqueante) =====
   static Future<void> saveSessionFast({
     required String token,
     required int userId,
@@ -37,21 +42,15 @@ class SessionManager {
     List<dynamic>? solicitudes,
   }) async {
     final prefs = await SharedPreferences.getInstance();
-
     await prefs.setString("auth_token", token);
     await prefs.setInt("user_id", userId);
-
     Future(() async {
       try {
-        if (user != null) {
-          await prefs.setString("user", jsonEncode(user));
-        }
-        if (reservas != null) {
+        if (user != null) await prefs.setString("user", jsonEncode(user));
+        if (reservas != null)
           await prefs.setString("reservas_dia", jsonEncode(reservas));
-        }
-        if (solicitudes != null) {
+        if (solicitudes != null)
           await prefs.setString("solicitudes", jsonEncode(solicitudes));
-        }
       } catch (_) {}
     });
   }
@@ -70,8 +69,7 @@ class SessionManager {
   static Future<Map<String, dynamic>?> getUser() async {
     final prefs = await SharedPreferences.getInstance();
     final userJson = prefs.getString("user");
-    if (userJson == null) return null;
-    return jsonDecode(userJson);
+    return userJson == null ? null : jsonDecode(userJson);
   }
 
   static Future<String?> getUserDni() async {
@@ -79,105 +77,77 @@ class SessionManager {
     return user?['dni']?.toString();
   }
 
-  // ===== LECTURA DE DATOS GUARDADOS =====
+  // ===== RESERVAS Y SOLICITUDES =====
   static Future<List<Map<String, dynamic>>> getReservas() async {
     final prefs = await SharedPreferences.getInstance();
-    final reservasJson = prefs.getString("reservas_dia");
-    if (reservasJson == null) return [];
-    return _decodeJsonToList(reservasJson);
+    final jsonStr = prefs.getString("reservas_dia");
+    return jsonStr == null ? [] : _decodeJsonToList(jsonStr);
   }
 
   static Future<List<Map<String, dynamic>>> getSolicitudes() async {
     final prefs = await SharedPreferences.getInstance();
-    final solicitudesJson = prefs.getString("solicitudes");
-    if (solicitudesJson == null) return [];
-    return _decodeJsonToList(solicitudesJson);
+    final jsonStr = prefs.getString("solicitudes");
+    return jsonStr == null ? [] : _decodeJsonToList(jsonStr);
   }
 
   static List<Map<String, dynamic>> _decodeJsonToList(String jsonString) {
     try {
       final decoded = jsonDecode(jsonString);
-
-      Map<String, dynamic> _normalizeMap(Map input) {
-        return Map<String, dynamic>.from(
-          input.map((k, v) => MapEntry(k.toString(), v)),
-        );
+      Map<String, dynamic> normalize(Map input) => Map<String, dynamic>.from(
+        input.map((k, v) => MapEntry(k.toString(), v)),
+      );
+      if (decoded is List)
+        return decoded
+            .map((e) => normalize(e as Map))
+            .cast<Map<String, dynamic>>()
+            .toList();
+      if (decoded is Map && decoded['data'] is List) {
+        return (decoded['data'] as List)
+            .map((e) => normalize(e as Map))
+            .cast<Map<String, dynamic>>()
+            .toList();
       }
-
-      if (decoded is List) {
-        return decoded.map<Map<String, dynamic>>((e) => _normalizeMap(e)).toList();
-      }
-
-      if (decoded is Map) {
-        if (decoded['data'] is List) {
-          return (decoded['data'] as List)
-              .map<Map<String, dynamic>>((e) => _normalizeMap(e))
+      for (final key in ['reservas', 'solicitudes', 'items', 'results']) {
+        if (decoded[key] is List) {
+          return (decoded[key] as List)
+              .map((e) => normalize(e as Map))
+              .cast<Map<String, dynamic>>()
               .toList();
         }
-
-        for (final key in ['reservas', 'solicitudes', 'items', 'results']) {
-          if (decoded[key] is List) {
-            return (decoded[key] as List)
-                .map<Map<String, dynamic>>((e) => _normalizeMap(e))
-                .toList();
-          }
-        }
-
-        if (decoded['data'] is Map) {
-          final inner = decoded['data'] as Map;
-          for (final v in inner.values) {
-            if (v is List) {
-              return v.map<Map<String, dynamic>>((e) => _normalizeMap(e)).toList();
-            }
-          }
-        }
-
-        return [_normalizeMap(decoded)];
       }
+      return [];
     } catch (e) {
-      print('Error al decodificar JSON: $e');
+      print('Error decodificando JSON: $e');
+      return [];
     }
-
-    return [];
   }
 
   static Future<List<Map<String, dynamic>>> fetchReservasFromApi() async {
     final token = await getToken();
     final idUser = await getUserId();
-
-    if (token == null || idUser == null) {
-      throw Exception('Faltan datos del chofer (token o id)');
-    }
-
-    final url = Uri.parse('http://servidorcorman.dyndns.org:7019/api/chofer/reservas');
-    final body = {"id_user": idUser};
+    if (token == null || idUser == null)
+      throw Exception('Faltan datos del chofer');
 
     final response = await http.post(
-      url,
+      Uri.parse('http://servidorcorman.dyndns.org:7019/api/chofer/reservas'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
-      body: jsonEncode(body),
+      body: jsonEncode({"id_user": idUser}),
     );
 
     if (response.statusCode == 200) {
-      final jsonData = jsonDecode(response.body);
-
-      if (jsonData['status'] == 'success' &&
-          jsonData['reservas'] != null &&
-          jsonData['reservas']['data'] is List) {
-        final reservas = List<Map<String, dynamic>>.from(jsonData['reservas']['data']);
+      final data = jsonDecode(response.body);
+      if (data['status'] == 'success' && data['reservas']?['data'] is List) {
+        final reservas = List<Map<String, dynamic>>.from(
+          data['reservas']['data'],
+        );
         await _saveReservas(reservas);
         return reservas;
-      } else {
-        throw Exception('Formato de datos inesperado o sin éxito');
       }
-    } else if (response.statusCode == 404) {
-      throw Exception('Usuario no encontrado');
-    } else {
-      throw Exception('Error del servidor (${response.statusCode})');
     }
+    throw Exception('Error al cargar reservas');
   }
 
   static Future<void> _saveReservas(List<Map<String, dynamic>> reservas) async {
@@ -200,5 +170,92 @@ class SessionManager {
   static Future<void> clearSession() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
+  }
+
+  // ====================== GESTIÓN DEL VIAJE ACTIVO ======================
+  static Future<bool> isTripActive() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('trip_active') == true;
+  }
+
+  static Future<TripStatus> getCurrentTripPhase() async {
+    final prefs = await SharedPreferences.getInstance();
+    final index = prefs.getInt('trip_current_phase') ?? 0;
+    return TripStatus.values[index.clamp(0, TripStatus.values.length - 1)];
+  }
+
+  static Future<void> startTrip() async {
+    final prefs = await SharedPreferences.getInstance();
+    final now = DateTime.now();
+    await prefs.setBool('trip_active', true);
+    await prefs.setInt('trip_current_phase', TripStatus.WAITING_INITIAL.index);
+    await prefs.setString('trip_assigned_time', now.toIso8601String());
+    await prefs.setString('trip_phase_start_time', now.toIso8601String());
+    await prefs.remove('trip_arrived_time');
+    await prefs.remove('trip_started_transit_time');
+    await prefs.remove('trip_finished_time');
+  }
+
+  static Future<void> updateTripPhase(TripStatus newStatus) async {
+    final prefs = await SharedPreferences.getInstance();
+    final currentIndex = prefs.getInt('trip_current_phase') ?? 0;
+    if (newStatus.index <= currentIndex) return; // No retroceder
+
+    final now = DateTime.now();
+    if (newStatus == TripStatus.ARRIVED_PICKUP) {
+      await prefs.setString('trip_arrived_time', now.toIso8601String());
+    } else if (newStatus == TripStatus.IN_TRANSIT) {
+      await prefs.setString('trip_started_transit_time', now.toIso8601String());
+    } else if (newStatus == TripStatus.TRIP_FINISHED) {
+      await prefs.setString('trip_finished_time', now.toIso8601String());
+    }
+
+    await prefs.setString('trip_phase_start_time', now.toIso8601String());
+    await prefs.setInt('trip_current_phase', newStatus.index);
+  }
+
+  static Future<void> endTrip() async {
+    final prefs = await SharedPreferences.getInstance();
+    await Future.wait([
+      prefs.remove('trip_active'),
+      prefs.remove('trip_current_phase'),
+      prefs.remove('trip_phase_start_time'),
+      prefs.remove('trip_assigned_time'),
+      prefs.remove('trip_arrived_time'),
+      prefs.remove('trip_started_transit_time'),
+      prefs.remove('trip_finished_time'),
+    ]);
+  }
+
+  // MÉTODO PÚBLICO (sin _ ) para que maps_page lo use
+  static Future<DateTime?> getTripTime(String key) async {
+    final prefs = await SharedPreferences.getInstance();
+    final str = prefs.getString(key);
+    return str == null ? null : DateTime.parse(str);
+  }
+
+  static Future<Duration> getCurrentPhaseDuration() async {
+    final start = await getTripTime('trip_phase_start_time');
+    return start == null ? Duration.zero : DateTime.now().difference(start);
+  }
+
+  static Future<Duration> getApproachDuration() async {
+    final assigned = await getTripTime('trip_assigned_time');
+    final arrived = await getTripTime('trip_arrived_time');
+    if (assigned == null) return Duration.zero;
+    return (arrived ?? DateTime.now()).difference(assigned);
+  }
+
+  static Future<Duration> getWaitPickupDuration() async {
+    final arrived = await getTripTime('trip_arrived_time');
+    final started = await getTripTime('trip_started_transit_time');
+    if (arrived == null) return Duration.zero;
+    return (started ?? DateTime.now()).difference(arrived);
+  }
+
+  static Future<Duration> getTravelDuration() async {
+    final started = await getTripTime('trip_started_transit_time');
+    if (started == null) return Duration.zero;
+    return DateTime.now().difference(started);
   }
 }

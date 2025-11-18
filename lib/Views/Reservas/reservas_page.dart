@@ -180,7 +180,7 @@ class ReservaDetalleCard extends StatelessWidget {
                 ),
               ),
               child: Text(
-                'Reserva N° 00$id',
+                'Reserva N° ${id.toString().padLeft(4, '0')}',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: Colors.black,

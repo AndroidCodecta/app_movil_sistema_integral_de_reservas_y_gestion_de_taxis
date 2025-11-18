@@ -5,6 +5,7 @@ import '../../Utils/session_manager.dart';
 import '../../Utils/reservas_service.dart';
 import '../Reservas/reservas_detalle.dart';
 import '../Reservas/reservas_page.dart';
+import '../Historial/historial_page.dart'; // IMPORTACIÓN DEL HISTORIAL
 import '../widgets/header.dart';
 import '../widgets/bottom_navigation.dart';
 
@@ -17,7 +18,7 @@ class ReservaCard extends StatelessWidget {
     super.key,
     required this.reserva,
     this.reservaId,
-    this.vehiculoData, // NUEVO
+    this.vehiculoData,
   });
 
   Widget _buildInfoRow(String label, String value) {
@@ -52,7 +53,6 @@ class ReservaCard extends StatelessWidget {
       );
     }
 
-    // Extraer datos del vehículo
     final placa = vehiculoData?['placa']?.toString() ?? 'N/A';
     final marca = vehiculoData?['marca']?.toString() ?? 'N/A';
     final modelo = vehiculoData?['año_modelo']?.toString() ?? 'N/A';
@@ -106,7 +106,6 @@ class ReservaCard extends StatelessWidget {
                     ),
                   ),
                 ),
-
                 Expanded(
                   flex: 1,
                   child: Container(
@@ -130,8 +129,6 @@ class ReservaCard extends StatelessWidget {
                 ),
               ],
             ),
-
-            // CONTENIDO
             Padding(
               padding: const EdgeInsets.all(16),
               child: Row(
@@ -156,7 +153,6 @@ class ReservaCard extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        // Datos del vehículo
                         Text(
                           'Placa: $placa',
                           style: const TextStyle(
@@ -191,9 +187,7 @@ class ReservaCard extends StatelessWidget {
                       ],
                     ),
                   ),
-
                   const SizedBox(width: 8),
-
                   Expanded(
                     flex: 1,
                     child: Column(
@@ -210,41 +204,6 @@ class ReservaCard extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CardHeaderSegment extends StatelessWidget {
-  final String title;
-  final Color color;
-  final bool isLeft;
-  final Color textColor;
-
-  const _CardHeaderSegment({
-    required this.title,
-    required this.color,
-    required this.isLeft,
-    required this.textColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.only(
-            topLeft: isLeft ? const Radius.circular(8) : Radius.zero,
-            topRight: isLeft ? Radius.zero : const Radius.circular(8),
-          ),
-        ),
-        child: Text(
-          title,
-          textAlign: TextAlign.center,
-          style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
         ),
       ),
     );
@@ -374,37 +333,90 @@ class _EstadoChoferButtonState extends State<EstadoChoferButton> {
   }
 }
 
+// ======================================================================
+// WIDGET MODIFICADO: StatusButtons con título e ícono de historial
+// ======================================================================
 class StatusButtons extends StatelessWidget {
   const StatusButtons({super.key});
 
   @override
   Widget build(BuildContext context) {
-    Widget _buildSectionTitle(
-      String title, {
-      VoidCallback? onTap,
-      bool isTop = true,
-    }) {
-      return GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: const Color.fromRGBO(255, 214, 10, 1),
-            borderRadius: BorderRadius.only(
-              topLeft: isTop ? const Radius.circular(12) : Radius.zero,
-              topRight: isTop ? const Radius.circular(12) : Radius.zero,
-            ),
+    Widget _buildSectionTitle(String title, {bool isTop = true}) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color.fromRGBO(255, 214, 10, 1),
+          borderRadius: BorderRadius.only(
+            topLeft: isTop ? const Radius.circular(12) : Radius.zero,
+            topRight: isTop ? const Radius.circular(12) : Radius.zero,
           ),
-          child: Text(
-            title,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Colors.black,
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
+        ),
+        child: Text(
+          title,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: Colors.black,
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
           ),
+        ),
+      );
+    }
+
+    // Widget para "Resumen de hoy" con ícono de historial
+    Widget _buildResumenConHistorial() {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        decoration: const BoxDecoration(
+          color: Color.fromRGBO(255, 214, 10, 1),
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(12),
+            topRight: Radius.circular(12),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // Espaciador para centrar el título
+            const SizedBox(width: 40),
+
+            // Título centrado
+            const Expanded(
+              child: Text(
+                'Resumen de hoy',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.black,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+
+            // Ícono de historial a la derecha
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => HistorialPage()),
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Icon(
+                  Icons.history,
+                  color: Colors.black87,
+                  size: 24,
+                ),
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -415,25 +427,15 @@ class StatusButtons extends StatelessWidget {
         const SizedBox(height: 8),
         const EstadoChoferButton(),
         const SizedBox(height: 8),
-        _buildSectionTitle(
-          'Resumen de hoy',
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const ReservasScreen()),
-            );
-          },
-          isTop: true,
-        ),
+        _buildResumenConHistorial(), // Nuevo widget con historial
       ],
     );
   }
 }
 
 // ======================================================================
-// PANTALLA PRINCIPAL (LÓGICA CORREGIDA PARA FORZAR CARGA DESDE API)
+// PANTALLA PRINCIPAL
 // ======================================================================
-
 class HomeScreen extends StatefulWidget {
   final List reservas;
 
@@ -444,18 +446,15 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // Lista que contendrá los Map<String, dynamic> de las reservas
   List<dynamic> _rawReservas = [];
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    // Priorizamos la carga de la API para asegurar la frescura de los datos
     _loadDataFromApiAndPrefs();
   }
 
-  // FUNCIÓN CLAVE CORREGIDA: Fuerza la carga desde la API y actualiza la UI
   Future<void> _loadDataFromApiAndPrefs() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
@@ -463,18 +462,15 @@ class _HomeScreenState extends State<HomeScreen> {
     List<dynamic> fetchedReservas = [];
 
     try {
-      // 1. Intentar cargar la data FRESCA desde la API
-      // Esta función ya guarda la data en SharedPreferences (según tu SessionManager)
       fetchedReservas = await SessionManager.fetchReservasFromApi();
     } catch (e) {
       print(
         'Fallo al obtener reservas de la API: $e. Intentando cargar desde cache.',
       );
-      // 2. Si falla la API, cargamos lo que estaba guardado previamente (cache)
       fetchedReservas = await SessionManager.getReservas();
       if (mounted && fetchedReservas.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text(
               'Error de conexión. Mostrando datos antiguos (o ninguno).',
             ),
@@ -491,12 +487,10 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Usa la lista de tarjetas construida para determinar si hay reservas válidas.
   bool get _shouldShowNoReservasMessage {
     return _buildReservaCards().isEmpty;
   }
 
-  // Genera las tarjetas de reserva mapeando los datos raw
   List<Widget> _buildReservaCards() {
     final validReservas = _rawReservas.where((r) {
       return r != null &&
@@ -566,7 +560,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         children: [
                           const StatusButtons(),
                           const SizedBox(height: 16),
-
                           if (_shouldShowNoReservasMessage)
                             Container(
                               padding: const EdgeInsets.all(20),
