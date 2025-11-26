@@ -1,12 +1,13 @@
+// Archivo: 'reservas_detalle.dart'
+
 import 'package:flutter/material.dart';
-import '/utils/reservas_service.dart'; // ¡USAMOS EL NUEVO SERVICE!
+import '/utils/reservas_service.dart'; // ¡USAMOS EL SERVICE CORREGIDO!
 import '../widgets/header.dart';
 import '../widgets/bottom_navigation.dart';
-import '../Maps/maps_page.dart';
+import '../Maps/maps_page.dart'; // Asegúrate de que esta ruta es correcta
 
 // =================================================================
-// CLASE MODELO (ReservaDetalleModel) - NECESARIA PARA PARSEAR EL DETALLE COMPLETO
-// Se extrae de la API con los datos anidados (cliente, vehiculo)
+// CLASE MODELO (ReservaDetalleModel)
 // =================================================================
 class ReservaDetalleModel {
   final int id;
@@ -16,10 +17,13 @@ class ReservaDetalleModel {
   final String tiempoEspera;
   final String direccionEncuentro;
   final String direccionDestino;
+
+  // Estos campos ahora son más tolerantes a la ausencia de datos
   final String placa;
   final String marca;
   final String anioModelo;
 
+  // ... (Constructor sin cambios)
   ReservaDetalleModel({
     required this.id,
     required this.cliente,
@@ -33,10 +37,19 @@ class ReservaDetalleModel {
     required this.anioModelo,
   });
 
-  // Método de fábrica para crear una instancia desde un mapa JSON
+  // Método de fábrica para crear una instancia desde un mapa JSON (REFORZADO)
   factory ReservaDetalleModel.fromJson(Map<String, dynamic> data) {
-    final cliente = data["cliente"] as Map<String, dynamic>? ?? {};
-    final vehiculo = data["vehiculo"] as Map<String, dynamic>? ?? {};
+    // 1. Manejo del Cliente: Si no es un Mapa<String, dynamic>, usamos un mapa vacío.
+    final cliente = (data["cliente"] is Map)
+        ? data["cliente"] as Map<String, dynamic>
+        : <String, dynamic>{};
+
+    // 2. Manejo del Vehículo: Si no es un Mapa<String, dynamic>, usamos un mapa vacío.
+    // Esto previene el _TypeError si "vehiculo" es null o de tipo incorrecto.
+    final vehiculo = (data["vehiculo"] is Map)
+        ? data["vehiculo"] as Map<String, dynamic>
+        : <String, dynamic>{};
+
     final fechaHora = data["fecha_hora"]?.toString() ?? "";
 
     return ReservaDetalleModel(
@@ -50,6 +63,8 @@ class ReservaDetalleModel {
       tiempoEspera: data["tiempo_espera"]?.toString() ?? "N/A",
       direccionEncuentro: data["d_encuentro"]?.toString() ?? "N/A",
       direccionDestino: data["d_destino"]?.toString() ?? "N/A",
+
+      // Detalle del vehículo: Si el mapa vehiculo está vacío, usa N/A.
       placa: vehiculo["placa"]?.toString() ?? "N/A",
       marca: vehiculo["marca"]?.toString() ?? "N/A",
       anioModelo: vehiculo["año_modelo"]?.toString() ?? "N/A",
@@ -58,10 +73,10 @@ class ReservaDetalleModel {
 }
 
 // =================================================================
-// PANTALLA DE DETALLE (ReservaDetalleCompletoScreen) - Ahora carga por ID
+// PANTALLA DE DETALLE (ReservaDetalleCompletoScreen)
 // =================================================================
 class ReservaDetalleCompletoScreen extends StatefulWidget {
-  final int reservaId; // ¡Ahora recibe el ID!
+  final int reservaId;
   const ReservaDetalleCompletoScreen({super.key, required this.reservaId});
 
   @override
@@ -81,17 +96,16 @@ class _ReservaDetalleCompletoScreenState
     _fetchDetail();
   }
 
-  // Función de carga de datos que se usa para la carga inicial y el refresh
+  // Función de carga de datos para el detalle
   Future<void> _fetchDetail() async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
-    // LLAMADA CORREGIDA: Usamos el nuevo service y el ID
     final data = await ReservasService.fetchReservaDetalle(widget.reservaId);
 
-    if (data != null) {
+    if (data != null && mounted) {
       try {
         final ReservaDetalleModel reservaCompleta =
             ReservaDetalleModel.fromJson(data);
@@ -100,21 +114,23 @@ class _ReservaDetalleCompletoScreenState
           _reservaDetalle = reservaCompleta;
         });
       } catch (e) {
-        print("Error al parsear datos: $e");
+        debugPrint("Error al parsear datos de detalle: $e");
         setState(() {
           _errorMessage = "Error al procesar los datos de la reserva.";
         });
       }
-    } else {
+    } else if (mounted) {
       setState(() {
         _errorMessage =
             "No se pudo cargar el detalle de la reserva ID: ${widget.reservaId}.";
       });
     }
 
-    setState(() {
-      _isLoading = false;
-    });
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   Widget _buildInfoRow(String label, String value) {
@@ -155,7 +171,7 @@ class _ReservaDetalleCompletoScreenState
     );
   }
 
-  // CONTENEDOR PRINCIPAL: Usa BoxDecoration (SIN CANVAS)
+  // CONTENEDOR PRINCIPAL: Usa BoxDecoration
   Widget _buildDetailContainer(ReservaDetalleModel reserva) {
     return Container(
       decoration: BoxDecoration(
@@ -185,7 +201,7 @@ class _ReservaDetalleCompletoScreenState
               ),
             ),
             child: Text(
-              'Reserva N° 00${reserva.id}',
+              'Reserva N° ${reserva.id.toString().padLeft(4, '0')}',
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: Colors.white,
@@ -261,6 +277,7 @@ class _ReservaDetalleCompletoScreenState
   Widget _buildActionButton(BuildContext context) {
     return ElevatedButton.icon(
       onPressed: () {
+        // Enviar a la pantalla de Mapas
         Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => const MapsScreen()),
@@ -307,14 +324,9 @@ class _ReservaDetalleCompletoScreenState
                       ],
                     ),
                   )
-                // ----------------------------------------------------
-                // IMPLEMENTACIÓN DEL REFRESHINDICATOR
-                // ----------------------------------------------------
                 : RefreshIndicator(
-                    onRefresh:
-                        _fetchDetail, // <-- Conecta la función de recarga
+                    onRefresh: _fetchDetail,
                     child: SingleChildScrollView(
-                      // Asegura que siempre se puede deslizar para recargar
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.all(16.0),
                       child: Column(

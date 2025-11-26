@@ -1,16 +1,23 @@
+// Archivo: 'inicio_page.dart'
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../../Utils/session_manager.dart';
 import '../../Utils/reservas_service.dart';
+// IMPORTACIÓN CLAVE: Aquí se define la clase ReservaDetalleModel
 import '../Reservas/reservas_detalle.dart';
 import '../Reservas/reservas_page.dart';
-import '../Historial/historial_page.dart'; // IMPORTACIÓN DEL HISTORIAL
+import '../Historial/historial_page.dart';
 import '../widgets/header.dart';
 import '../widgets/bottom_navigation.dart';
 
+// ======================================================================
+// RESERVA CARD
+// ======================================================================
 class ReservaCard extends StatelessWidget {
-  final ReservaDetalle reserva;
+  // CLASE CORREGIDA: Usar el nombre correcto del modelo
+  final ReservaDetalleModel reserva;
   final int? reservaId;
   final Map<String, dynamic>? vehiculoData;
 
@@ -53,6 +60,7 @@ class ReservaCard extends StatelessWidget {
       );
     }
 
+    // Extraer datos del vehículo
     final placa = vehiculoData?['placa']?.toString() ?? 'N/A';
     final marca = vehiculoData?['marca']?.toString() ?? 'N/A';
     final modelo = vehiculoData?['año_modelo']?.toString() ?? 'N/A';
@@ -90,29 +98,9 @@ class ReservaCard extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     decoration: const BoxDecoration(
-                      color: Color(0xFF1C1C1C),
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(8),
-                      ),
-                    ),
-                    child: const Text(
-                      'Auto',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  flex: 1,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    decoration: const BoxDecoration(
                       color: Color.fromARGB(255, 255, 214, 10),
                       borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(8),
                         topRight: Radius.circular(8),
                       ),
                     ),
@@ -129,64 +117,12 @@ class ReservaCard extends StatelessWidget {
                 ),
               ],
             ),
+            // CONTENIDO
             Padding(
               padding: const EdgeInsets.all(16),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    flex: 1,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: 60,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: Colors.grey[300],
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Icon(
-                            Icons.directions_car,
-                            color: Colors.grey,
-                            size: 24,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Placa: $placa',
-                          style: const TextStyle(
-                            fontSize: 10,
-                            color: Colors.black87,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        Text(
-                          'Marca: $marca',
-                          style: const TextStyle(
-                            fontSize: 10,
-                            color: Colors.black87,
-                          ),
-                        ),
-                        Text(
-                          'Modelo: $modelo',
-                          style: const TextStyle(
-                            fontSize: 10,
-                            color: Colors.black87,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'Toca para ver más detalles',
-                          style: TextStyle(
-                            fontSize: 9,
-                            color: Colors.blueGrey,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     flex: 1,
@@ -210,6 +146,9 @@ class ReservaCard extends StatelessWidget {
   }
 }
 
+// ======================================================================
+// BOTÓN DE ESTADO DEL CHOFER
+// ======================================================================
 class EstadoChoferButton extends StatefulWidget {
   const EstadoChoferButton({super.key});
 
@@ -220,14 +159,16 @@ class EstadoChoferButton extends StatefulWidget {
 class _EstadoChoferButtonState extends State<EstadoChoferButton> {
   bool? activo;
   bool _isLoading = false;
+  static const String _baseUrl = "http://servidorcorman.dyndns.org:7019/api";
 
   @override
   void initState() {
     super.initState();
-    _fetchEstado();
+    _fetchEstadoActual();
   }
 
-  Future<void> _fetchEstado() async {
+  // 1. AL ENTRAR: Usa el endpoint NUEVO para obtener el estado actual
+  Future<void> _fetchEstadoActual() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
 
@@ -244,9 +185,7 @@ class _EstadoChoferButtonState extends State<EstadoChoferButton> {
       return;
     }
 
-    final url = Uri.parse(
-      "http://servidorcorman.dyndns.org:7019/api/chofer/estado",
-    );
+    final url = Uri.parse("$_baseUrl/chofer/estado_actual");
 
     try {
       final response = await http.post(
@@ -261,19 +200,67 @@ class _EstadoChoferButtonState extends State<EstadoChoferButton> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final estado = data["data"]?["estado"];
-        if (mounted) setState(() => activo = estado == 1);
-      } else if (response.statusCode == 404) {
-        if (mounted) setState(() => activo = false);
+
+        bool esActivo = false;
+        if (estado is int) esActivo = estado == 1;
+        if (estado is String) esActivo = estado == "1";
+
+        if (mounted) setState(() => activo = esActivo);
+      } else {
+        print("Error al obtener estado actual: ${response.statusCode}");
+      }
+    } catch (e) {
+      print("Excepción fetching estado: $e");
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // 2. AL TOCAR: Usa el endpoint ANTERIOR para cambiar el estado
+  Future<void> _cambiarEstado() async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+
+    final token = await SessionManager.getToken();
+    final userId = await SessionManager.getUserId();
+
+    if (token == null || userId == null) {
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    final url = Uri.parse("$_baseUrl/chofer/estado");
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $token",
+        },
+        body: jsonEncode({"id_user": userId}),
+      );
+
+      if (response.statusCode == 200) {
+        // Éxito: Volvemos a consultar el estado real para asegurar sincronización
+        await _fetchEstadoActual();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Estado actualizado correctamente")),
+          );
+        }
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                "Error ${response.statusCode}: no se pudo obtener estado",
+                "Error ${response.statusCode}: no se pudo cambiar estado",
               ),
             ),
           );
         }
+        setState(() => _isLoading = false);
       }
     } catch (e) {
       if (mounted) {
@@ -281,33 +268,28 @@ class _EstadoChoferButtonState extends State<EstadoChoferButton> {
           context,
         ).showSnackBar(SnackBar(content: Text("Error de conexión: $e")));
       }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  void _toggleEstado() {
-    if (activo != null) {
-      setState(() {
-        activo = !activo!;
-      });
-      print(
-        'Simulando envío de estado a API: ${!activo! ? 'Activo' : 'Inactivo'}',
-      );
+      setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
+    if (_isLoading && activo == null) {
       return const Center(child: CircularProgressIndicator());
     }
+
     if (activo == null) {
-      return const Text("Estado no disponible. Intente de nuevo.");
+      return GestureDetector(
+        onTap: _fetchEstadoActual,
+        child: const Text(
+          "Estado no disponible. Toca para reintentar.",
+          style: TextStyle(color: Colors.red),
+        ),
+      );
     }
 
     return GestureDetector(
-      onTap: _toggleEstado,
+      onTap: _cambiarEstado,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
@@ -319,15 +301,24 @@ class _EstadoChoferButtonState extends State<EstadoChoferButton> {
               : Colors.redAccent,
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Text(
-          activo == true ? 'Activo' : 'Inactivo',
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: Colors.black,
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+        child: _isLoading
+            ? const SizedBox(
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            : Text(
+                activo == true ? 'Activo' : 'Inactivo',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.black,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
       ),
     );
   }
@@ -341,7 +332,8 @@ class StatusButtons extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget _buildSectionTitle(String title, {bool isTop = true}) {
+    // Widget para el título de la sección de Estado
+    Widget _buildEstadoTitle(String title, {bool isTop = true}) {
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 12),
@@ -372,14 +364,14 @@ class StatusButtons extends StatelessWidget {
         decoration: const BoxDecoration(
           color: Color.fromRGBO(255, 214, 10, 1),
           borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(12),
-            topRight: Radius.circular(12),
+            bottomLeft: Radius.circular(12), // Aplicamos el borde inferior aquí
+            bottomRight: Radius.circular(12),
           ),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // Espaciador para centrar el título
+            // Espaciador para centrar el título (simula el ancho del ícono)
             const SizedBox(width: 40),
 
             // Título centrado
@@ -400,7 +392,9 @@ class StatusButtons extends StatelessWidget {
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => HistorialPage()),
+                  MaterialPageRoute(
+                    builder: (context) => const HistorialPage(),
+                  ),
                 );
               },
               child: Container(
@@ -423,19 +417,26 @@ class StatusButtons extends StatelessWidget {
 
     return Column(
       children: [
-        _buildSectionTitle('Estado'),
+        // Título de Estado
+        _buildEstadoTitle('Estado', isTop: true),
         const SizedBox(height: 8),
+
+        // Botón de Estado
         const EstadoChoferButton(),
-        const SizedBox(height: 8),
-        _buildResumenConHistorial(), // Nuevo widget con historial
+        const SizedBox(
+          height: 16,
+        ), // Aumento el espacio para separar visualmente
+        // Título de Resumen con botón de Historial
+        _buildResumenConHistorial(),
       ],
     );
   }
 }
 
 // ======================================================================
-// PANTALLA PRINCIPAL
+// PANTALLA PRINCIPAL (HOME)
 // ======================================================================
+
 class HomeScreen extends StatefulWidget {
   final List reservas;
 
@@ -462,12 +463,18 @@ class _HomeScreenState extends State<HomeScreen> {
     List<dynamic> fetchedReservas = [];
 
     try {
-      fetchedReservas = await SessionManager.fetchReservasFromApi();
+      // Usamos el servicio específico para Reservas del Día
+      fetchedReservas = await ReservasService.fetchReservasDia();
+
+      // NOTA: No guardamos en caché aquí, asumimos que el servicio lo maneja o se guardará en otro lado.
     } catch (e) {
       print(
         'Fallo al obtener reservas de la API: $e. Intentando cargar desde cache.',
       );
+
+      // Si falla la conexión, intentamos cargar las reservas guardadas localmente
       fetchedReservas = await SessionManager.getReservas();
+
       if (mounted && fetchedReservas.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -519,22 +526,38 @@ class _HomeScreenState extends State<HomeScreen> {
             return Container();
           }
 
-          final reserva = ReservaDetalle(
+          // USO CORREGIDO DEL MODELO
+          final reserva = ReservaDetalleModel(
+            id: idReserva, // El ID se necesita para el constructor del modelo
             cliente: "${cliente["nombres"] ?? ""} ${cliente["apellidos"] ?? ""}"
                 .trim(),
             fechaReserva: (r["fecha_hora"] ?? "").toString().split(" ")[0],
             horaRecogida:
                 (r["fecha_hora"] ?? "").toString().split(" ").length > 1
-                ? r["fecha_hora"].split(" ")[1]
+                ? (r["fecha_hora"] as String)
+                      .split(" ")[1]
+                      .substring(0, 5) // Ajustado para ser seguro
                 : "",
             direccionEncuentro: r["d_encuentro"] ?? "",
+            direccionDestino: r["d_destino"] ?? "", // Se requiere en el modelo
+            placa:
+                vehiculo["placa"]?.toString() ??
+                "N/A", // Se requiere en el modelo
+            marca:
+                vehiculo["marca"]?.toString() ??
+                "N/A", // Se requiere en el modelo
+            anioModelo:
+                vehiculo["año_modelo"]?.toString() ??
+                "N/A", // Se requiere en el modelo
+            tiempoEspera:
+                r["tiempo_espera"]?.toString() ??
+                "N/A", // Se requiere en el modelo
           );
 
           return ReservaCard(
             key: ValueKey(idReserva),
             reserva: reserva,
             reservaId: idReserva,
-            vehiculoData: vehiculo,
           );
         })
         .whereType<ReservaCard>()
@@ -560,6 +583,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         children: [
                           const StatusButtons(),
                           const SizedBox(height: 16),
+
                           if (_shouldShowNoReservasMessage)
                             Container(
                               padding: const EdgeInsets.all(20),

@@ -1,5 +1,6 @@
+// Archivo: 'solicitudes_page.dart'
 import 'package:flutter/material.dart';
-import '../../utils/session_manager.dart';
+import '../../utils/session_manager.dart'; // Importaciones originales
 import '../../utils/solicitud_service.dart';
 import '../widgets/header.dart';
 import '../widgets/bottom_navigation.dart';
@@ -12,6 +13,7 @@ class SolicitudesPage extends StatefulWidget {
 }
 
 class _SolicitudesPageState extends State<SolicitudesPage> {
+  // Las solicitudes ahora contienen la data de la RESERVA (que incluye cliente, etc.)
   List<Map<String, dynamic>> solicitudes = [];
   bool _isLoading = true;
 
@@ -21,27 +23,45 @@ class _SolicitudesPageState extends State<SolicitudesPage> {
     _loadSolicitudes();
   }
 
-  // Función de carga de solicitudes que se usa para la carga inicial y el refresh
+  // Función de carga de solicitudes (ahora más simple gracias al SolicitudService corregido)
   Future<void> _loadSolicitudes() async {
-    // Simula un tiempo de carga breve para que el RefreshIndicator se vea
-    await Future.delayed(const Duration(milliseconds: 300));
-
-    final data = await SessionManager.getSolicitudes();
-    List<Map<String, dynamic>> registros = [];
-
-    if (data.isNotEmpty) {
-      final primer = data.first;
-      if (primer.containsKey('data') && primer['data'] is List) {
-        registros = List<Map<String, dynamic>>.from(primer['data']);
-      } else if (data is List) {
-        registros = List<Map<String, dynamic>>.from(data);
-      }
+    if (solicitudes.isEmpty) {
+      setState(() {
+        _isLoading = true;
+      });
     }
 
-    setState(() {
-      solicitudes = registros;
-      _isLoading = false;
-    });
+    try {
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      // 1. Llamamos al servicio (que ahora extrae 'reservas_solicitudes'['data'])
+      final rawData = await SolicitudService.listarSolicitudes();
+
+      // 2. Convertimos la data limpia
+      final List<Map<String, dynamic>> registros =
+          List<Map<String, dynamic>>.from(rawData);
+
+      if (mounted) {
+        setState(() {
+          solicitudes = registros;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error cargando solicitudes: $e");
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        // Muestra el error al usuario
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al cargar solicitudes: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _responderSolicitud(int solicitudChoferId, int estado) async {
@@ -51,48 +71,53 @@ class _SolicitudesPageState extends State<SolicitudesPage> {
         estado: estado,
       );
 
+      final mensaje = estado == 1
+          ? 'Solicitud aceptada correctamente'
+          : 'Solicitud rechazada';
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            estado == 1
-                ? 'Solicitud aceptada correctamente'
-                : 'Solicitud rechazada',
-          ),
+          content: Text(mensaje),
           backgroundColor: estado == 1 ? Colors.green : Colors.red,
         ),
       );
 
-      // eliminar la solicitud de la lista local
+      // El ID de la solicitud de chofer está ANIDADO
+      // Lo que se debe eliminar de la lista local es la RESERVA,
+      // cuyo ID es el 'id' del elemento de la lista.
       setState(() {
-        solicitudes.removeWhere(
-          (s) =>
-              s['id'] == solicitudChoferId ||
-              s['solicitud_chofer_id'] == solicitudChoferId,
-        );
+        // Usamos el id de la SOLICITUD_CHOFER para la condición de eliminación
+        solicitudes.removeWhere((s) {
+          final solicitudChofer =
+              s['solicitud_chofer'] as Map<String, dynamic>?;
+          final idSolicitudChofer = solicitudChofer?['id'];
+
+          // Compara el ID de la solicitud_chofer con el ID que se acaba de responder
+          return idSolicitudChofer != null &&
+              idSolicitudChofer.toString() == solicitudChoferId.toString();
+        });
       });
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text('Error: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
 
   // Widget para el estado de lista vacía que permite recargar
-  // Se usa LayoutBuilder para calcular la altura restante de forma dinámica y correcta.
   Widget _buildEmptyStateWithRefresh(BuildContext context) {
     return RefreshIndicator(
       onRefresh: _loadSolicitudes, // Conecta la función de recarga
       child: LayoutBuilder(
         builder: (context, constraints) {
-          // El SingleChildScrollView asegura que la física del scroll sea siempre activa
           return SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             child: ConstrainedBox(
-              constraints: BoxConstraints(
-                // Usa la altura disponible para centrar correctamente el mensaje
-                minHeight: constraints.maxHeight,
-              ),
-              child: const Center(child: Text('No hay solicitudes')),
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: const Center(child: Text('No hay solicitudes pendientes')),
             ),
           );
         },
@@ -112,23 +137,30 @@ class _SolicitudesPageState extends State<SolicitudesPage> {
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : solicitudes.isEmpty
-                  ? _buildEmptyStateWithRefresh(
-                      context,
-                    ) // Usa la función corregida
+                  ? _buildEmptyStateWithRefresh(context)
                   : RefreshIndicator(
-                      onRefresh:
-                          _loadSolicitudes, // Implementación del RefreshIndicator
+                      onRefresh: _loadSolicitudes,
                       child: ListView.builder(
-                        physics:
-                            const AlwaysScrollableScrollPhysics(), // Esencial para el RefreshIndicator
+                        physics: const AlwaysScrollableScrollPhysics(),
                         padding: const EdgeInsets.all(16),
                         itemCount: solicitudes.length,
                         itemBuilder: (context, index) {
                           final s = solicitudes[index];
-                          final reserva = s['reserva'] ?? {};
+
+                          // La data de la reserva es 's' misma en este endpoint, pero
+                          // tu código original usaba 'reserva', lo corrijo para usar 's' directamente.
+                          // Pero lo más importante: extraemos la SOLICITUD_CHOFER para obtener el ID de respuesta.
+                          final reserva = s; // s es la reserva
                           final cliente = reserva['cliente'] ?? {};
-                          final idSolicitud =
-                              s['id'] ?? s['solicitud_chofer_id'] ?? 0;
+                          final solicitudChofer =
+                              reserva['solicitud_chofer'] ?? {};
+
+                          // ESTA ES LA CLAVE PARA PASAR EL ID CORRECTO A LA FUNCIÓN DE RESPUESTA
+                          final idSolicitudChofer =
+                              int.tryParse(
+                                solicitudChofer['id']?.toString() ?? '0',
+                              ) ??
+                              0;
 
                           final nombreCliente =
                               '${cliente['nombres'] ?? ''} ${cliente['apellidos'] ?? ''}'
@@ -139,9 +171,12 @@ class _SolicitudesPageState extends State<SolicitudesPage> {
 
                           final fechaCompleta =
                               reserva['fecha_hora']?.toString() ?? '---';
-                          final fecha = fechaCompleta.split(' ')[0];
-                          final hora = fechaCompleta.split(' ').length > 1
-                              ? fechaCompleta.split(' ')[1]
+                          final partesFechaHora = fechaCompleta.split(' ');
+                          final fecha = partesFechaHora.isNotEmpty
+                              ? partesFechaHora[0]
+                              : '---';
+                          final hora = partesFechaHora.length > 1
+                              ? partesFechaHora[1]
                               : '---';
 
                           final espera =
@@ -157,10 +192,11 @@ class _SolicitudesPageState extends State<SolicitudesPage> {
                                 hora: hora,
                                 espera: espera,
                                 direccion: direccion,
+                                // Pasamos el ID de la solicitud_chofer ANIDADA
                                 onAceptar: () =>
-                                    _responderSolicitud(idSolicitud, 1),
+                                    _responderSolicitud(idSolicitudChofer, 1),
                                 onRechazar: () =>
-                                    _responderSolicitud(idSolicitud, 0),
+                                    _responderSolicitud(idSolicitudChofer, 0),
                               ),
                               const SizedBox(height: 16),
                             ],
@@ -178,8 +214,7 @@ class _SolicitudesPageState extends State<SolicitudesPage> {
 }
 
 class _SolicitudCard extends StatelessWidget {
-  // ... (Código de _SolicitudCard sin cambios)
-  // Este código es idéntico a tu original
+  // ... (El código de _SolicitudCard se mantiene igual)
   final String cliente;
   final String fecha;
   final String hora;
