@@ -79,33 +79,70 @@ class ReservasService {
     }
   }
 
-  // ============================================================
-  // 3. OBTENER EL DETALLE COMPLETO DE UNA RESERVA POR ID
-  //    (Llama a la lista del día y la filtra. Usa el endpoint con la data más rica)
-  // ============================================================
+  // --- 3. OBTENER EL DETALLE COMPLETO DE LA RESERVA ---
+  // Retorna un Map<String, dynamic> con todos los datos del detalle
   static Future<Map<String, dynamic>?> fetchReservaDetalle(
     int reservaId,
   ) async {
-    // Usamos el endpoint que parece tener el detalle más rico (como reservas_dia)
-    final jsonData = await _performPost('chofer/reservas_dia');
+    final token = await SessionManager.getToken();
+    final idUser = await SessionManager.getUserId();
 
-    if (jsonData != null &&
-        jsonData['success'] == true &&
-        jsonData['reservas_dia'] != null &&
-        jsonData['reservas_dia']['data'] is List) {
-      final List<Map<String, dynamic>> listaReservas =
-          List<Map<String, dynamic>>.from(jsonData['reservas_dia']['data']);
+    if (token == null || idUser == null) {
+      return null;
+    }
 
-      // Buscar la reserva por ID
-      final Map<String, dynamic>? reservaEncontrada = listaReservas.firstWhere(
-        (reserva) => (reserva['id'] as int?) == reservaId,
-        orElse: () => {},
+    // URL: /api/reservas_detalle/{id}
+    final url = Uri.parse('$BASE_URL/chofer/reservas_detalle/$reservaId');
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({"id_user": idUser}),
       );
 
-      return reservaEncontrada != null && reservaEncontrada.isNotEmpty
-          ? reservaEncontrada
-          : null;
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = jsonDecode(response.body);
+
+        if (responseData['status'] == 'success' &&
+            responseData['data'] != null) {
+          // Retorna el objeto 'data'
+          return responseData['data'] as Map<String, dynamic>;
+        } else {
+          return null;
+        }
+      } else {
+        print(
+          "Error HTTP ${response.statusCode}: Fallo al cargar el detalle de la reserva $reservaId.",
+        );
+        return null;
+      }
+    } catch (e) {
+      print(
+        "Excepción al realizar la llamada HTTP para detalle de reserva: $e",
+      );
+      return null;
     }
-    return null;
+  }
+
+  // ============================================================
+  // 4. OBTENER LA LISTA COMPLETA DE HISTORIAL
+  // ============================================================
+  static Future<List<Map<String, dynamic>>> fetchReservasHistorial() async {
+    final jsonData = await _performPost('chofer/reservas_aceptadas');
+
+    if (jsonData != null &&
+        jsonData['status'] == 'success' &&
+        jsonData['reservas_aceptadas'] != null &&
+        jsonData['reservas_aceptadas']['data'] is List) {
+      return List<Map<String, dynamic>>.from(
+        jsonData['reservas_aceptadas']['data'],
+      );
+    } else {
+      return [];
+    }
   }
 }
