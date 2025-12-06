@@ -3,20 +3,15 @@ import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 
-// ====================== ENUM PARA FASES DEL VIAJE (CORREGIDO) ======================
-// ESTOS CUATRO VALORES DEBEN ESTAR PRESENTES
 enum TripStatus {
-  ASSIGNED_TO_DRIVER, // 0 - El viaje está asignado, pendiente de 'Iniciar Viaje'.
-  APPROACHING_PICKUP, // 1 - Chofer en ruta a la dirección de recojo. (Empieza al pulsar Iniciar Viaje)
-  ARRIVED_PICKUP, // 2 - Llegó al punto de encuentro. (Inicia contador de Espera - Amarillo)
-  IN_TRANSIT, // 3 - Cliente arriba, yendo al destino. (Inicia contador de Viaje - Verde)
-  TRIP_FINISHED, // 4 - Viaje terminado.
+  ASSIGNED_TO_DRIVER,
+  APPROACHING_PICKUP,
+  ARRIVED_PICKUP,
+  IN_TRANSIT,
+  TRIP_FINISHED,
 }
 
 class SessionManager {
-  // ====================== CÓDIGO INICIAL (MANTENIDO) ======================
-
-  // ===== GUARDAR SESIÓN (LOGIN) =====
   static Future<void> saveSession({
     required String token,
     required int userId,
@@ -59,7 +54,6 @@ class SessionManager {
     });
   }
 
-  // ===== GETTERS BÁSICOS =====
   static Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString("auth_token");
@@ -81,7 +75,6 @@ class SessionManager {
     return user?['dni']?.toString();
   }
 
-  // ===== RESERVAS Y SOLICITUDES =====
   static Future<List<Map<String, dynamic>>> getReservas() async {
     final prefs = await SharedPreferences.getInstance();
     final jsonStr = prefs.getString("reservas_dia");
@@ -159,7 +152,6 @@ class SessionManager {
     await prefs.setString("reservas_dia", jsonEncode(reservas));
   }
 
-  // ===== ESTADO DEL CHOFER =====
   static Future<void> setEstadoChofer(bool activo) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool("chofer_activo", activo);
@@ -170,13 +162,11 @@ class SessionManager {
     return prefs.getBool("chofer_activo");
   }
 
-  // ===== LIMPIAR SESIÓN =====
   static Future<void> clearSession() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
   }
 
-  // ====================== GESTIÓN DEL VIAJE ACTIVO (AJUSTADO) ======================
   static Future<bool> isTripActive() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool('trip_active') == true;
@@ -184,10 +174,9 @@ class SessionManager {
 
   static Future<TripStatus> getCurrentTripPhase() async {
     final prefs = await SharedPreferences.getInstance();
-    // Nuevo valor por defecto: ASSIGNED_TO_DRIVER (0)
     final index =
         prefs.getInt('trip_current_phase') ??
-        TripStatus.ASSIGNED_TO_DRIVER.index;
+            TripStatus.ASSIGNED_TO_DRIVER.index;
     return TripStatus.values[index.clamp(0, TripStatus.values.length - 1)];
   }
 
@@ -195,17 +184,13 @@ class SessionManager {
     final prefs = await SharedPreferences.getInstance();
     final now = DateTime.now();
     await prefs.setBool('trip_active', true);
-    // Estado inicial: ASSIGNED_TO_DRIVER
     await prefs.setInt(
       'trip_current_phase',
       TripStatus.ASSIGNED_TO_DRIVER.index,
     );
-    // Se usa 'trip_assigned_time' para el momento en que se tomó el viaje (desde el inicio)
     await prefs.setString('trip_assigned_time', now.toIso8601String());
-    // 'trip_phase_start_time' se usa para medir la duración de la FASE ACTUAL (WAITING_INITIAL, ARRIVED_PICKUP, IN_TRANSIT)
     await prefs.setString('trip_phase_start_time', now.toIso8601String());
 
-    // Limpiar tiempos de eventos específicos
     await prefs.remove('trip_arrived_time');
     await prefs.remove('trip_started_transit_time');
     await prefs.remove('trip_finished_time');
@@ -215,32 +200,22 @@ class SessionManager {
     final prefs = await SharedPreferences.getInstance();
     final currentIndex =
         prefs.getInt('trip_current_phase') ??
-        TripStatus.ASSIGNED_TO_DRIVER.index;
+            TripStatus.ASSIGNED_TO_DRIVER.index;
 
-    // Prevenir retroceder en la fase. Permitir repetir si es el mismo estado.
     if (newStatus.index < currentIndex) return;
 
     final now = DateTime.now();
 
-    // Registra el tiempo de evento específico:
-    // APPROACHING_PICKUP es el momento donde pulsa "Iniciar Viaje" (empieza el contador de ACERCAMIENTO)
     if (newStatus == TripStatus.APPROACHING_PICKUP) {
       await prefs.setString('trip_approach_start_time', now.toIso8601String());
-    }
-    // ARRIVED_PICKUP es el momento donde pulsa "Llegué" (empieza el contador de ESPERA)
-    else if (newStatus == TripStatus.ARRIVED_PICKUP) {
+    } else if (newStatus == TripStatus.ARRIVED_PICKUP) {
       await prefs.setString('trip_arrived_time', now.toIso8601String());
-    }
-    // IN_TRANSIT es el momento donde pulsa "Iniciar Viaje con Cliente" (empieza el contador de VIAJE)
-    else if (newStatus == TripStatus.IN_TRANSIT) {
+    } else if (newStatus == TripStatus.IN_TRANSIT) {
       await prefs.setString('trip_started_transit_time', now.toIso8601String());
-    }
-    // TRIP_FINISHED es el momento donde pulsa "Finalizar"
-    else if (newStatus == TripStatus.TRIP_FINISHED) {
+    } else if (newStatus == TripStatus.TRIP_FINISHED) {
       await prefs.setString('trip_finished_time', now.toIso8601String());
     }
 
-    // Siempre actualiza el tiempo de inicio de la FASE ACTUAL
     await prefs.setString('trip_phase_start_time', now.toIso8601String());
     await prefs.setInt('trip_current_phase', newStatus.index);
   }
@@ -252,7 +227,7 @@ class SessionManager {
       prefs.remove('trip_current_phase'),
       prefs.remove('trip_phase_start_time'),
       prefs.remove('trip_assigned_time'),
-      prefs.remove('trip_approach_start_time'), // Nuevo
+      prefs.remove('trip_approach_start_time'),
       prefs.remove('trip_arrived_time'),
       prefs.remove('trip_started_transit_time'),
       prefs.remove('trip_finished_time'),
@@ -265,46 +240,33 @@ class SessionManager {
     return str == null ? null : DateTime.parse(str);
   }
 
-  // Duración de la FASE ACTUAL (útil para mostrar un contador que se resetea en cada avance)
   static Future<Duration> getCurrentPhaseDuration() async {
     final start = await getTripTime('trip_phase_start_time');
     return start == null ? Duration.zero : DateTime.now().difference(start);
   }
 
-  // Duración total del ACERCAMIENTO (APPROACHING_PICKUP)
   static Future<Duration> getApproachDuration() async {
     final approachStart = await getTripTime('trip_approach_start_time');
     final arrived = await getTripTime('trip_arrived_time');
-    // Si no ha iniciado el acercamiento (ASSIGNED), o ya se ha llegado, retorna 0 o el tiempo fijo.
     if (approachStart == null) return Duration.zero;
 
-    // Si llegó (arrived != null), el tiempo de acercamiento es fijo.
-    // Si no ha llegado (arrived == null), sigue corriendo.
     return (arrived ?? DateTime.now()).difference(approachStart);
   }
 
-  // Duración total de ESPERA (ARRIVED_PICKUP)
   static Future<Duration> getWaitPickupDuration() async {
     final arrived = await getTripTime('trip_arrived_time');
     final started = await getTripTime('trip_started_transit_time');
-    // El contador de espera (amarillo) solo empieza a correr después de ARRIVED_PICKUP
     if (arrived == null) return Duration.zero;
 
-    // Si ya inició el tránsito (started != null), el tiempo de espera es fijo.
-    // Si no ha iniciado el tránsito (started == null), sigue corriendo.
     return (started ?? DateTime.now()).difference(arrived);
   }
 
-  // Duración total de VIAJE (IN_TRANSIT)
   static Future<Duration> getTravelDuration() async {
     final started = await getTripTime('trip_started_transit_time');
     final finished = await getTripTime('trip_finished_time');
 
-    // El contador de viaje (verde) solo empieza a correr después de IN_TRANSIT
     if (started == null) return Duration.zero;
 
-    // Si el viaje terminó (finished != null), el tiempo de viaje es fijo.
-    // Si no ha terminado (finished == null), sigue corriendo.
     return (finished ?? DateTime.now()).difference(started);
   }
 }

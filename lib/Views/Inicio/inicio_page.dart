@@ -1,22 +1,15 @@
-// Archivo: 'inicio_page.dart'
-
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../../Utils/session_manager.dart';
 import '../../Utils/reservas_service.dart';
-// IMPORTACIÓN CLAVE: Aquí se define la clase ReservaDetalleModel
 import '../Reservas/reservas_detalle.dart';
 import '../Reservas/reservas_page.dart';
 import '../Historial/historial_page.dart';
 import '../widgets/header.dart';
 import '../widgets/bottom_navigation.dart';
 
-// ======================================================================
-// RESERVA CARD
-// ======================================================================
 class ReservaCard extends StatelessWidget {
-  // CLASE CORREGIDA: Usar el nombre correcto del modelo
   final ReservaDetalleModel reserva;
   final int? reservaId;
   final Map<String, dynamic>? vehiculoData;
@@ -60,7 +53,6 @@ class ReservaCard extends StatelessWidget {
       );
     }
 
-    // Extraer datos del vehículo
     final placa = vehiculoData?['placa']?.toString() ?? 'N/A';
     final marca = vehiculoData?['marca']?.toString() ?? 'N/A';
     final modelo = vehiculoData?['año_modelo']?.toString() ?? 'N/A';
@@ -117,7 +109,6 @@ class ReservaCard extends StatelessWidget {
                 ),
               ],
             ),
-            // CONTENIDO
             Padding(
               padding: const EdgeInsets.all(16),
               child: Row(
@@ -146,9 +137,6 @@ class ReservaCard extends StatelessWidget {
   }
 }
 
-// ======================================================================
-// BOTÓN DE ESTADO DEL CHOFER
-// ======================================================================
 class EstadoChoferButton extends StatefulWidget {
   const EstadoChoferButton({super.key});
 
@@ -167,7 +155,6 @@ class _EstadoChoferButtonState extends State<EstadoChoferButton> {
     _fetchEstadoActual();
   }
 
-  // 1. AL ENTRAR: Usa el endpoint NUEVO para obtener el estado actual
   Future<void> _fetchEstadoActual() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
@@ -216,7 +203,6 @@ class _EstadoChoferButtonState extends State<EstadoChoferButton> {
     }
   }
 
-  // 2. AL TOCAR: Usa el endpoint ANTERIOR para cambiar el estado
   Future<void> _cambiarEstado() async {
     if (_isLoading) return;
     setState(() => _isLoading = true);
@@ -242,7 +228,6 @@ class _EstadoChoferButtonState extends State<EstadoChoferButton> {
       );
 
       if (response.statusCode == 200) {
-        // Éxito: Volvemos a consultar el estado real para asegurar sincronización
         await _fetchEstadoActual();
 
         if (mounted) {
@@ -302,37 +287,35 @@ class _EstadoChoferButtonState extends State<EstadoChoferButton> {
           borderRadius: BorderRadius.circular(8),
         ),
         child: _isLoading
-            ? const SizedBox(
-                height: 20,
-                width: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
-              )
+            ? const Center(
+          child: SizedBox(
+            height: 20,
+            width: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 3,
+              color: Colors.white,
+            ),
+          ),
+        )
             : Text(
-                activo == true ? 'Activo' : 'Inactivo',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.black,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+          activo == true ? 'Activo' : 'Inactivo',
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: Colors.black,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     );
   }
 }
 
-// ======================================================================
-// WIDGET MODIFICADO: StatusButtons con título e ícono de historial
-// ======================================================================
 class StatusButtons extends StatelessWidget {
   const StatusButtons({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Widget para el título de la sección de Estado
     Widget _buildEstadoTitle(String title, {bool isTop = true}) {
       return Container(
         width: double.infinity,
@@ -356,7 +339,6 @@ class StatusButtons extends StatelessWidget {
       );
     }
 
-    // Widget para "Resumen de hoy" con ícono de historial
     Widget _buildResumenConHistorial() {
       return Container(
         width: double.infinity,
@@ -364,17 +346,14 @@ class StatusButtons extends StatelessWidget {
         decoration: const BoxDecoration(
           color: Color.fromRGBO(255, 214, 10, 1),
           borderRadius: BorderRadius.only(
-            bottomLeft: Radius.circular(12), // Aplicamos el borde inferior aquí
+            bottomLeft: Radius.circular(12),
             bottomRight: Radius.circular(12),
           ),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // Espaciador para centrar el título (simula el ancho del ícono)
             const SizedBox(width: 40),
-
-            // Título centrado
             const Expanded(
               child: Text(
                 'Resumen de hoy',
@@ -386,8 +365,6 @@ class StatusButtons extends StatelessWidget {
                 ),
               ),
             ),
-
-            // Ícono de historial a la derecha
             GestureDetector(
               onTap: () {
                 Navigator.push(
@@ -417,25 +394,17 @@ class StatusButtons extends StatelessWidget {
 
     return Column(
       children: [
-        // Título de Estado
         _buildEstadoTitle('Estado', isTop: true),
         const SizedBox(height: 8),
-
-        // Botón de Estado
         const EstadoChoferButton(),
         const SizedBox(
           height: 16,
-        ), // Aumento el espacio para separar visualmente
-        // Título de Resumen con botón de Historial
+        ),
         _buildResumenConHistorial(),
       ],
     );
   }
 }
-
-// ======================================================================
-// PANTALLA PRINCIPAL (HOME)
-// ======================================================================
 
 class HomeScreen extends StatefulWidget {
   final List reservas;
@@ -463,16 +432,12 @@ class _HomeScreenState extends State<HomeScreen> {
     List<dynamic> fetchedReservas = [];
 
     try {
-      // Usamos el servicio específico para Reservas del Día
       fetchedReservas = await ReservasService.fetchReservasDia();
-
-      // NOTA: No guardamos en caché aquí, asumimos que el servicio lo maneja o se guardará en otro lado.
     } catch (e) {
       print(
         'Fallo al obtener reservas de la API: $e. Intentando cargar desde cache.',
       );
 
-      // Si falla la conexión, intentamos cargar las reservas guardadas localmente
       fetchedReservas = await SessionManager.getReservas();
 
       if (mounted && fetchedReservas.isEmpty) {
@@ -515,51 +480,42 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return validReservas
         .map((r) {
-          final cliente = r["cliente"] ?? {};
-          final vehiculo = r["vehiculo"] ?? {};
+      final cliente = r["cliente"] ?? {};
+      final vehiculo = r["vehiculo"] ?? {};
 
-          final int? idReserva = r["id"] is int
-              ? r["id"]
-              : int.tryParse(r["id"]?.toString() ?? '');
+      final int? idReserva = r["id"] is int
+          ? r["id"]
+          : int.tryParse(r["id"]?.toString() ?? '');
 
-          if (idReserva == null) {
-            return Container();
-          }
+      if (idReserva == null) {
+        return Container();
+      }
 
-          // USO CORREGIDO DEL MODELO
-          final reserva = ReservaDetalleModel(
-            id: idReserva, // El ID se necesita para el constructor del modelo
-            cliente: "${cliente["nombres"] ?? ""} ${cliente["apellidos"] ?? ""}"
-                .trim(),
-            fechaReserva: (r["fecha_hora"] ?? "").toString().split(" ")[0],
-            horaRecogida:
-                (r["fecha_hora"] ?? "").toString().split(" ").length > 1
-                ? (r["fecha_hora"] as String)
-                      .split(" ")[1]
-                      .substring(0, 5) // Ajustado para ser seguro
-                : "",
-            direccionEncuentro: r["d_encuentro"] ?? "",
-            direccionDestino: r["d_destino"] ?? "", // Se requiere en el modelo
-            placa:
-                vehiculo["placa"]?.toString() ??
-                "N/A", // Se requiere en el modelo
-            marca:
-                vehiculo["marca"]?.toString() ??
-                "N/A", // Se requiere en el modelo
-            anioModelo:
-                vehiculo["año_modelo"]?.toString() ??
-                "N/A", // Se requiere en el modelo
-            tiempoEspera:
-                r["tiempo_espera"]?.toString() ??
-                "N/A", // Se requiere en el modelo
-          );
+      final reserva = ReservaDetalleModel(
+        id: idReserva,
+        cliente: "${cliente["nombres"] ?? ""} ${cliente["apellidos"] ?? ""}"
+            .trim(),
+        fechaReserva: (r["fecha_hora"] ?? "").toString().split(" ")[0],
+        horaRecogida:
+        (r["fecha_hora"] ?? "").toString().split(" ").length > 1
+            ? (r["fecha_hora"] as String)
+            .split(" ")[1]
+            .substring(0, 5)
+            : "",
+        direccionEncuentro: r["d_encuentro"] ?? "",
+        direccionDestino: r["d_destino"] ?? "",
+        placa: vehiculo["placa"]?.toString() ?? "N/A",
+        marca: vehiculo["marca"]?.toString() ?? "N/A",
+        anioModelo: vehiculo["año_modelo"]?.toString() ?? "N/A",
+        tiempoEspera: r["tiempo_espera"]?.toString() ?? "N/A",
+      );
 
-          return ReservaCard(
-            key: ValueKey(idReserva),
-            reserva: reserva,
-            reservaId: idReserva,
-          );
-        })
+      return ReservaCard(
+        key: ValueKey(idReserva),
+        reserva: reserva,
+        reservaId: idReserva,
+      );
+    })
         .whereType<ReservaCard>()
         .toList();
   }
@@ -573,55 +529,54 @@ class _HomeScreenState extends State<HomeScreen> {
           const LogoHeader(titulo: 'Inicio', estiloLogin: false),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Center(
+                child: CircularProgressIndicator(color: Color(0xFFFFD60A)))
                 : RefreshIndicator(
-                    onRefresh: _loadDataFromApiAndPrefs,
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(16.0),
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      child: Column(
-                        children: [
-                          const StatusButtons(),
-                          const SizedBox(height: 16),
-
-                          if (_shouldShowNoReservasMessage)
-                            Container(
-                              padding: const EdgeInsets.all(20),
-                              margin: const EdgeInsets.only(bottom: 16),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(8),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.grey.withOpacity(0.2),
-                                    spreadRadius: 1,
-                                    blurRadius: 3,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: const Center(
-                                child: Text(
-                                  "No tienes reservas por el momento 🚗\nDesliza hacia abajo para buscar nuevas reservas.",
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.grey,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            )
-                          else
-                            ..._buildReservaCards(),
-                        ],
-                      ),
-                    ),
-                  ),
+              onRefresh: _loadDataFromApiAndPrefs,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16.0),
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Column(
+                  children: [
+                    const StatusButtons(),
+                    const SizedBox(height: 16),
+                    if (_shouldShowNoReservasMessage)
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.grey.withOpacity(0.2),
+                              spreadRadius: 1,
+                              blurRadius: 3,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Center(
+                          child: Text(
+                            "No tienes reservas por el momento 🚗\nDesliza hacia abajo para buscar nuevas reservas.",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      ..._buildReservaCards(),
+                  ],
+                ),
+              ),
+            ),
           ),
         ],
       ),
-      bottomNavigationBar: const CustomBottomNavBar(),
     );
   }
 }

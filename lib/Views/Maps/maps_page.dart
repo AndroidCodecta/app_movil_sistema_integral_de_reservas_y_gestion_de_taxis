@@ -1,229 +1,176 @@
-// Archivo: maps_screen.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
-// import 'package:workmanager/workmanager.dart'; // Ya no se necesita Workmanager si el cálculo se hace en SessionManager
-import '../../Utils/session_manager.dart'; // Importa el TripStatus y SessionManager
-import '../widgets/header.dart'; // Asumo que tienes esta ruta
-import '../widgets/bottom_navigation.dart'; // Asumo que tienes esta ruta
+// import '../../utils/viajes_service.dart'; // API COMENTADA
+import '../widgets/header.dart';
 
-// ==========================================================
-// PANTALLA PRINCIPAL
-// ==========================================================
+enum TripStatus {
+  EN_CAMINO,           // 1. Chofer va en camino
+  EN_PUNTO_ENCUENTRO,  // 2. Llegó, corre espera
+  EN_VIAJE,            // 3. Inició viaje, corre viaje
+  DESTINO_LLEGADO,     // 4. Llegó, mensaje tiempo enviado
+  PAGO_COMPLETADO      // 5. Fin
+}
 
 class TripEvent {
   final TripStatus status;
   final String description;
   DateTime? timestamp;
-  TripEvent(this.status, this.description, {this.timestamp});
+  DateTime? expectedTime;
+
+  TripEvent(this.status, this.description, {this.timestamp, this.expectedTime});
 }
 
 class MapsScreen extends StatefulWidget {
-  const MapsScreen({super.key});
+  final bool viajeIniciado;
+  final int? reservaId;
+  final DateTime? horaEsperadaRecogidaReal;
+
+  const MapsScreen({super.key, this.viajeIniciado = false, this.reservaId, this.horaEsperadaRecogidaReal});
+
   @override
   State<MapsScreen> createState() => _MapsScreenState();
 }
 
-class _MapsScreenState extends State<MapsScreen> with WidgetsBindingObserver {
-  late TripStatus _currentStatus;
+class _MapsScreenState extends State<MapsScreen> {
+  final String _montoViaje = "S/. 219.89";
+  TripStatus _currentStatus = TripStatus.EN_CAMINO;
+  late List<TripEvent> _tripTimeline;
 
-  // Los 4 eventos principales después de ASSIGNED_TO_DRIVER (0)
-  final List<TripEvent> _tripTimeline = [
-    TripEvent(
-      TripStatus.APPROACHING_PICKUP,
-      '1. Viajando a Dirección de Recojo (Iniciado)',
-    ), // Índice 0
-    TripEvent(
-      TripStatus.ARRIVED_PICKUP,
-      '2. Chofer llega al Punto de Encuentro',
-    ), // Índice 1
-    TripEvent(
-      TripStatus.IN_TRANSIT,
-      '3. Inicio de Viaje (con Cliente)',
-    ), // Índice 2
-    TripEvent(TripStatus.TRIP_FINISHED, '4. Viaje Finalizado'), // Índice 3
-  ];
+  // Cronómetros internos (lógica)
+  final Stopwatch _waitStopwatch = Stopwatch();
+  final Stopwatch _travelStopwatch = Stopwatch();
+  Timer? _timer;
 
   Duration _waitDuration = Duration.zero;
   Duration _travelDuration = Duration.zero;
-  Timer? _timer;
+
+  // Simulación de hora esperada
+  late DateTime _simulatedExpectedTimeForTesting;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _currentStatus = TripStatus.ASSIGNED_TO_DRIVER;
-    _initializeTrip();
-  }
+    _simulatedExpectedTimeForTesting = DateTime.now().add(const Duration(minutes: 15));
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      // Si la app vuelve a primer plano, forzamos la lectura de los tiempos
-      _updateTimes();
+    _tripTimeline = [
+      TripEvent(TripStatus.EN_CAMINO, 'El chofer está de camino al punto de encuentro'),
+      TripEvent(TripStatus.EN_PUNTO_ENCUENTRO, 'El chofer llegó al punto de encuentro', expectedTime: _simulatedExpectedTimeForTesting),
+      TripEvent(TripStatus.EN_VIAJE, 'El chofer comenzó el viaje'),
+      TripEvent(TripStatus.DESTINO_LLEGADO, 'El chofer llegó al destino'),
+    ];
+
+    // REQUERIMIENTO: "El primero esta con check porque desde otra vista iniciamos el viaje"
+    // Marcamos visualmente el paso 0 como completado con la hora actual
+    _tripTimeline[0].timestamp = DateTime.now();
+
+    if (widget.viajeIniciado) {
+      // Si restauras estado, aquí iría esa lógica.
+      _startTicker();
     }
-  }
-
-  Future<void> _initializeTrip() async {
-    final isActive = await SessionManager.isTripActive();
-
-    if (!isActive) {
-      // Inicia un nuevo viaje en el estado base ASSIGNED_TO_DRIVER (0)
-      await SessionManager.startTrip();
-      _currentStatus = TripStatus.ASSIGNED_TO_DRIVER;
-    } else {
-      _currentStatus = await SessionManager.getCurrentTripPhase();
-
-      // Recuperar los timestamps para la línea de tiempo.
-      final approached = await SessionManager.getTripTime(
-        'trip_approach_start_time',
-      ); // Nuevo timestamp
-      final arrived = await SessionManager.getTripTime('trip_arrived_time');
-      final started = await SessionManager.getTripTime(
-        'trip_started_transit_time',
-      );
-      final finished = await SessionManager.getTripTime('trip_finished_time');
-
-      if (approached != null) _tripTimeline[0].timestamp = approached;
-      if (arrived != null) _tripTimeline[1].timestamp = arrived;
-      if (started != null) _tripTimeline[2].timestamp = started;
-      if (finished != null) _tripTimeline[3].timestamp = finished;
-
-      // Recuperar contadores al inicio
-      _waitDuration = await SessionManager.getWaitPickupDuration();
-      _travelDuration = await SessionManager.getTravelDuration();
-    }
-
-    // Timer de 1 segundo para refrescar el UI de los tiempos más fluidamente
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) => _updateTimes());
-    if (mounted) setState(() {});
-  }
-
-  // Corregido: Actualiza los contadores de tiempo en la UI leyendo el cálculo en vivo
-  void _updateTimes() async {
-    if (_currentStatus == TripStatus.TRIP_FINISHED) {
-      _timer?.cancel();
-      return;
-    }
-
-    // Leemos los contadores que SessionManager calcula en vivo usando DateTime.now()
-    final wait = await SessionManager.getWaitPickupDuration();
-    final travel = await SessionManager.getTravelDuration();
-
-    if (mounted) {
-      setState(() {
-        _waitDuration = wait;
-        _travelDuration = travel;
-      });
-    }
-  }
-
-  String _formatDuration(Duration d) {
-    final h = d.inHours.toString().padLeft(2, '0');
-    final m = (d.inMinutes % 60).toString().padLeft(2, '0');
-    final s = (d.inSeconds % 60).toString().padLeft(2, '0');
-    return '$h:$m:$s';
-  }
-
-  void _advanceTripStatus() async {
-    if (_currentStatus == TripStatus.TRIP_FINISHED) return;
-
-    final nextIndex = _currentStatus.index + 1;
-    if (nextIndex >= TripStatus.values.length) return;
-
-    final nextStatus = TripStatus.values[nextIndex];
-    await SessionManager.updateTripPhase(nextStatus);
-
-    // Si el estado es APPROACHING_PICKUP o ARRIVED_PICKUP o IN_TRANSIT,
-    // el timestamp correspondiente en la línea de tiempo se actualiza.
-    if (nextStatus.index > TripStatus.ASSIGNED_TO_DRIVER.index) {
-      // El índice de _tripTimeline es siempre el índice del enum - 1
-      _tripTimeline[nextStatus.index - 1].timestamp =
-          await SessionManager.getTripTime(
-            nextStatus == TripStatus.APPROACHING_PICKUP
-                ? 'trip_approach_start_time'
-                : nextStatus == TripStatus.ARRIVED_PICKUP
-                ? 'trip_arrived_time'
-                : nextStatus == TripStatus.IN_TRANSIT
-                ? 'trip_started_transit_time'
-                : 'trip_finished_time',
-          );
-    }
-
-    setState(() {
-      _currentStatus = nextStatus;
-      // Forzar la actualización inmediata de los contadores con el nuevo tiempo fijo/cero
-      _updateTimes();
-    });
-
-    if (nextStatus == TripStatus.TRIP_FINISHED) {
-      // Finaliza el viaje
-      await SessionManager.endTrip();
-      _timer?.cancel();
-    }
-  }
-
-  Future<void> _showConfirmationDialog() async {
-    if (_currentStatus == TripStatus.TRIP_FINISHED) return;
-
-    // Define la descripción del PRÓXIMO estado
-    String nextDesc = '';
-    if (_currentStatus == TripStatus.ASSIGNED_TO_DRIVER) {
-      nextDesc = '1. Iniciar Viaje (a Recojo)';
-    } else if (_currentStatus == TripStatus.APPROACHING_PICKUP) {
-      nextDesc = '2. Chofer llega al Punto de Encuentro';
-    } else if (_currentStatus == TripStatus.ARRIVED_PICKUP) {
-      nextDesc = '3. Iniciar Viaje con Pasajero (a Destino)';
-    } else if (_currentStatus == TripStatus.IN_TRANSIT) {
-      nextDesc = '4. Finalizar Viaje';
-    } else {
-      return;
-    }
-
-    final confirm = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        title: const Text('Confirmar Avance'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('¿Estás seguro de avanzar al siguiente paso?'),
-            const SizedBox(height: 12),
-            Text(
-              'Próximo estado: "$nextDesc"',
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.blue,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text('Esta acción no se puede deshacer.'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue.shade700,
-            ),
-            child: const Text('Avanzar'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) _advanceTripStatus();
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
+    _waitStopwatch.stop();
+    _travelStopwatch.stop();
     super.dispose();
+  }
+
+  void _startTicker() {
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          if (_waitStopwatch.isRunning) _waitDuration = _waitStopwatch.elapsed;
+          if (_travelStopwatch.isRunning) _travelDuration = _travelStopwatch.elapsed;
+        });
+      }
+    });
+  }
+
+  String _formatDuration(Duration d) {
+    String twoDigits(int n) => n.toString().padLeft(2, "0");
+    String hours = twoDigits(d.inHours);
+    String minutes = twoDigits(d.inMinutes.remainder(60));
+    String seconds = twoDigits(d.inSeconds.remainder(60));
+    return "$hours:$minutes:$seconds";
+  }
+
+  Future<void> _advanceTripStatus() async {
+    // --- LÓGICA LOCAL DE CAMBIO DE ESTADO ---
+    setState(() {
+      final currentStatusIndex = _currentStatus.index;
+      final nextStatusIndex = currentStatusIndex + 1;
+
+      if (nextStatusIndex < TripStatus.values.length) {
+        final nextStatus = TripStatus.values[nextStatusIndex];
+        _currentStatus = nextStatus;
+
+        // Actualizar timestamp visual (ajustado -1 porque PAGO no está en timeline visual)
+        if (nextStatusIndex  < _tripTimeline.length && nextStatus != TripStatus.PAGO_COMPLETADO) {
+          _tripTimeline[nextStatusIndex ].timestamp = DateTime.now();
+        }
+
+        switch (nextStatus) {
+          case TripStatus.EN_CAMINO:
+            break;
+          case TripStatus.EN_PUNTO_ENCUENTRO:
+          // Botón presionado: "Llegué al punto". Inicia espera.
+            _startTicker();
+            _waitStopwatch.start();
+            break;
+          case TripStatus.EN_VIAJE:
+          // Botón presionado: "Comenzar viaje". Para espera, inicia viaje.
+            _waitStopwatch.stop();
+            _travelStopwatch.start();
+            break;
+          case TripStatus.DESTINO_LLEGADO:
+          // Botón presionado: "Terminar viaje". Para todo.
+            _travelStopwatch.stop();
+            _timer?.cancel();
+            break;
+          case TripStatus.PAGO_COMPLETADO:
+            break;
+        }
+      }
+    });
+  }
+
+  Future<void> _showConfirmationDialog() async {
+    if (_currentStatus == TripStatus.DESTINO_LLEGADO || _currentStatus == TripStatus.PAGO_COMPLETADO) return;
+
+    // Títulos de botones según requerimiento
+    String nextStepTitle = "";
+    switch (_currentStatus) {
+      case TripStatus.EN_CAMINO: nextStepTitle = "Llegué al punto de encuentro"; break;
+      case TripStatus.EN_PUNTO_ENCUENTRO: nextStepTitle = "Comenzar Viaje"; break;
+      case TripStatus.EN_VIAJE: nextStepTitle = "Terminar Viaje"; break;
+      default: break;
+    }
+
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(nextStepTitle),
+          content: const Text('¿Estás seguro de avanzar al siguiente estado?'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancelar'),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            ElevatedButton(
+              child: const Text('Confirmar'),
+              onPressed: () {
+                Navigator.of(context).pop();
+                _advanceTripStatus();
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -232,52 +179,75 @@ class _MapsScreenState extends State<MapsScreen> with WidgetsBindingObserver {
       backgroundColor: Colors.grey[50],
       body: Column(
         children: [
-          const LogoHeader(
-            titulo: 'Viaje',
-            estiloLogin: false,
-          ), // Asumo este widget
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildStatusCard(),
-                  const SizedBox(height: 20),
-                  _buildTimeTrackers(),
-                  const SizedBox(height: 30),
-                  _buildSingleActionButton(),
-                  const SizedBox(height: 30),
-                  _buildTimeline(),
-                ],
+          const LogoHeader(titulo: 'Viaje en Curso', estiloLogin: false),
+          if (widget.viajeIniciado)
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildStatusCard(),
+                    const SizedBox(height: 20),
+
+                    // REQUERIMIENTO: "Los contadores deben ser uno, cambia de color y texto"
+                    if (_currentStatus != TripStatus.PAGO_COMPLETADO)
+                      _buildDynamicTimer(),
+
+                    const SizedBox(height: 30),
+
+                    // Botones de acción
+                    if (_currentStatus != TripStatus.DESTINO_LLEGADO && _currentStatus != TripStatus.PAGO_COMPLETADO)
+                      _buildSingleActionButton(),
+
+                    const SizedBox(height: 30),
+                    _buildTimeline(),
+
+                    // Sección Pago aparece al final
+                    if (_currentStatus == TripStatus.DESTINO_LLEGADO || _currentStatus == TripStatus.PAGO_COMPLETADO)
+                      _buildPaymentSection(),
+
+                    const SizedBox(height: 20),
+                  ],
+                ),
               ),
+            )
+          else
+            const Expanded(
+              child: Center(child: Text('Cargando...', style: TextStyle(fontSize: 18))),
             ),
-          ),
         ],
       ),
-      bottomNavigationBar: const CustomBottomNavBar(), // Asumo este widget
     );
   }
 
-  Widget _buildStatusCard() {
-    String text = '';
-    Color color = Colors.grey.shade600;
+  // --- WIDGETS ---
 
-    if (_currentStatus == TripStatus.ASSIGNED_TO_DRIVER) {
-      text = 'ASIGNADO - Pendiente de Iniciar Viaje';
-      color = Colors.grey.shade600;
-    } else if (_currentStatus == TripStatus.APPROACHING_PICKUP) {
-      text = 'EN RUTA - Viajando a la dirección de recojo';
-      color = Colors.blue.shade800;
-    } else if (_currentStatus == TripStatus.ARRIVED_PICKUP) {
-      text = 'ESPERA - Esperando al pasajero en el punto de encuentro';
-      color = Colors.orange.shade800;
-    } else if (_currentStatus == TripStatus.IN_TRANSIT) {
-      text = 'EN VIAJE - Llevando al pasajero al destino';
-      color = Colors.green.shade800;
-    } else if (_currentStatus == TripStatus.TRIP_FINISHED) {
-      text = 'VIAJE FINALIZADO CON ÉXITO';
-      color = Colors.purple.shade800;
+  Widget _buildStatusCard() {
+    String statusText = '';
+    Color statusColor = Colors.grey;
+
+    switch (_currentStatus) {
+      case TripStatus.EN_CAMINO:
+        statusText = 'En camino al punto de encuentro';
+        statusColor = Colors.blue.shade800;
+        break;
+      case TripStatus.EN_PUNTO_ENCUENTRO:
+        statusText = 'Esperando al pasajero';
+        statusColor = Colors.orange.shade800;
+        break;
+      case TripStatus.EN_VIAJE:
+        statusText = 'En ruta hacia el destino';
+        statusColor = Colors.green.shade800;
+        break;
+      case TripStatus.DESTINO_LLEGADO:
+        statusText = 'Llegada al destino confirmada';
+        statusColor = Colors.purple.shade800;
+        break;
+      case TripStatus.PAGO_COMPLETADO:
+        statusText = 'Viaje Finalizado';
+        statusColor = Colors.grey.shade800;
+        break;
     }
 
     return Container(
@@ -286,32 +256,18 @@ class _MapsScreenState extends State<MapsScreen> with WidgetsBindingObserver {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
+          BoxShadow(color: statusColor.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5)),
         ],
-        border: Border.all(color: color.withOpacity(0.5), width: 2),
+        border: Border.all(color: statusColor.withOpacity(0.5), width: 2),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          const Text(
-            'ESTADO ACTUAL:',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            text,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: color,
+          Icon(Icons.info_outline, color: statusColor),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              statusText,
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: statusColor),
             ),
           ),
         ],
@@ -319,87 +275,120 @@ class _MapsScreenState extends State<MapsScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildTimeTrackers() => Column(
-    children: [
-      // Contador de Espera (Amarillo)
-      _timeDisplay(
-        'Tiempo de Espera (al pasajero)',
-        _formatDuration(_waitDuration),
-        Colors.orange.shade100,
-        Colors.orange.shade800,
-      ),
-      const SizedBox(height: 10),
-      // Contador de Viaje (Verde)
-      _timeDisplay(
-        'Tiempo de Recorrido',
-        _formatDuration(_travelDuration),
-        Colors.green.shade100,
-        Colors.green.shade800,
-      ),
-    ],
-  );
+  // REQUERIMIENTO: UN SOLO CONTADOR DINÁMICO
+  Widget _buildDynamicTimer() {
+    String label = "Tiempo";
+    String timeValue = "00:00:00";
+    Color bgColor = Colors.grey.shade200;
+    Color fgColor = Colors.grey.shade700;
+    bool isMessageMode = false;
 
-  Widget _timeDisplay(String title, String time, Color bg, Color fg) =>
-      Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+    switch (_currentStatus) {
+      case TripStatus.EN_CAMINO:
+      // Paso 1 no cuenta
+        label = "En Camino";
+        timeValue = "--:--:--";
+        bgColor = Colors.blue.shade50;
+        fgColor = Colors.blue.shade800;
+        break;
+      case TripStatus.EN_PUNTO_ENCUENTRO:
+      // Paso 2 corre tiempo de espera
+        label = "Tiempo de Espera";
+        timeValue = _formatDuration(_waitDuration);
+        bgColor = Colors.orange.shade100;
+        fgColor = Colors.orange.shade900;
+        break;
+      case TripStatus.EN_VIAJE:
+      // Paso 3 cuenta tiempo de viaje
+        label = "Tiempo de Viaje";
+        timeValue = _formatDuration(_travelDuration);
+        bgColor = Colors.green.shade100;
+        fgColor = Colors.green.shade900;
+        break;
+      case TripStatus.DESTINO_LLEGADO:
+      // Paso 4 Mensaje
+        isMessageMode = true;
+        label = "Tiempo enviado, revise el método de pago";
+        bgColor = Colors.purple.shade50;
+        fgColor = Colors.purple.shade800;
+        break;
+      default:
+        break;
+    }
+
+    if (isMessageMode) {
+      return Container(
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(8),
+          color: bgColor,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: fgColor.withOpacity(0.3)),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              title,
-              style: TextStyle(fontWeight: FontWeight.w600, color: fg),
-            ),
-            Text(
-              time,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: fg,
-                fontFamily: 'RobotoMono',
-              ),
-            ),
-          ],
+        child: Center(
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: fgColor),
+          ),
         ),
       );
+    }
+
+    // Diseño Normal del Contador
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: fgColor.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          Text(label.toUpperCase(), style: TextStyle(fontWeight: FontWeight.w600, color: fgColor, letterSpacing: 1.2)),
+          const SizedBox(height: 5),
+          Text(
+            timeValue,
+            style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: fgColor, fontFamily: 'RobotoMono'),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildSingleActionButton() {
-    final texts = {
-      TripStatus.ASSIGNED_TO_DRIVER: '1. Iniciar Viaje (a Recojo)',
-      TripStatus.APPROACHING_PICKUP: '2. Chofer llega al Punto de Encuentro',
-      TripStatus.ARRIVED_PICKUP: '3. Iniciar Viaje con Pasajero (a Destino)',
-      TripStatus.IN_TRANSIT: '4. Finalizar Viaje',
-      TripStatus.TRIP_FINISHED: 'VIAJE FINALIZADO',
-    };
+    String buttonText = '';
+    Color buttonColor = Colors.blue;
+    VoidCallback? onPressedAction = _showConfirmationDialog;
 
-    final colors = {
-      TripStatus.ASSIGNED_TO_DRIVER: Colors.blue.shade700,
-      TripStatus.APPROACHING_PICKUP: Colors.orange.shade700,
-      TripStatus.ARRIVED_PICKUP: Colors.green.shade700,
-      TripStatus.IN_TRANSIT: Colors.purple.shade700,
-      TripStatus.TRIP_FINISHED: Colors.grey,
-    };
+    // REQUERIMIENTO: Textos de botones específicos
+    switch (_currentStatus) {
+      case TripStatus.EN_CAMINO:
+        buttonText = 'Llegué al punto de encuentro';
+        buttonColor = Colors.blue.shade700;
+        break;
+      case TripStatus.EN_PUNTO_ENCUENTRO:
+        buttonText = 'Comenzar Viaje';
+        buttonColor = Colors.green.shade700;
+        break;
+      case TripStatus.EN_VIAJE:
+        buttonText = 'Terminar Viaje';
+        buttonColor = Colors.red.shade700;
+        break;
+      default:
+        buttonText = 'Procesando...';
+        onPressedAction = null;
+    }
 
     return ElevatedButton(
-      onPressed: _currentStatus == TripStatus.TRIP_FINISHED
-          ? null
-          : _showConfirmationDialog,
+      onPressed: onPressedAction,
       style: ElevatedButton.styleFrom(
         minimumSize: const Size(double.infinity, 55),
-        backgroundColor: colors[_currentStatus],
+        backgroundColor: buttonColor,
+        foregroundColor: Colors.white,
+        elevation: 3,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
-      child: Text(
-        texts[_currentStatus]!,
-        style: const TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-          color: Colors.white,
-        ),
-      ),
+      child: Text(buttonText, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
     );
   }
 
@@ -414,79 +403,19 @@ class _MapsScreenState extends State<MapsScreen> with WidgetsBindingObserver {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'HISTORIAL DE VIAJE:',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 10),
-          ..._tripTimeline.map((event) {
-            final completed = event.timestamp != null;
-            final isActive = _currentStatus == event.status;
-
-            Color iconColor;
-            IconData iconData;
-
-            if (completed) {
-              iconColor = Colors.green.shade700;
-              iconData = Icons.check_circle;
-            } else if (isActive) {
-              iconColor = Colors.orange.shade500;
-              iconData = Icons.adjust;
-            } else {
-              iconColor = Colors.grey.shade400;
-              iconData = Icons.radio_button_off;
-            }
+          const Text('HISTORIAL:', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey)),
+          const SizedBox(height: 15),
+          ..._tripTimeline.asMap().entries.map((entry) {
+            int index = entry.key;
+            TripEvent event = entry.value;
+            bool isCompleted = event.timestamp != null;
+            bool isLast = index == _tripTimeline.length - 1;
 
             return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 30,
-                      alignment: Alignment.center,
-                      child: Icon(iconData, color: iconColor, size: 20),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            event.description,
-                            style: TextStyle(
-                              fontWeight: completed || isActive
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
-                              color: completed || isActive
-                                  ? Colors.black87
-                                  : Colors.grey.shade600,
-                            ),
-                          ),
-                          Text(
-                            completed
-                                ? 'Hora: ${event.timestamp!.toString().substring(11, 19)}'
-                                : isActive
-                                ? 'EN CURSO (Estado Actual)'
-                                : 'Pendiente',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: completed ? Colors.grey : iconColor,
-                              fontWeight: isActive
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                if (event != _tripTimeline.last)
-                  _buildTimelineConnector(completed),
+                _buildTimelineItem(event, isCompleted, index),
+                if (!isLast) _buildTimelineConnector(isCompleted),
               ],
             );
           }).toList(),
@@ -495,20 +424,173 @@ class _MapsScreenState extends State<MapsScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildTimelineConnector(bool completed) => Row(
-    children: [
-      Container(
-        width: 30,
-        alignment: Alignment.center,
-        child: Container(
-          margin: const EdgeInsets.symmetric(vertical: 4),
-          height: 25,
-          width: 2,
-          color: completed ? Colors.green.shade200 : Colors.grey.shade200,
+  Widget _buildTimelineItem(TripEvent event, bool isCompleted, int index) {
+    Color iconColor = isCompleted ? Colors.green.shade600 : Colors.grey.shade300;
+    Color textColor = isCompleted ? Colors.black87 : Colors.grey.shade500;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Column(
+          children: [
+            Icon(isCompleted ? Icons.check_circle : Icons.radio_button_unchecked, color: iconColor, size: 22),
+          ],
         ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                event.description,
+                style: TextStyle(fontWeight: isCompleted ? FontWeight.bold : FontWeight.normal, color: textColor, fontSize: 15),
+              ),
+              const SizedBox(height: 4),
+              _buildColoredTimestamp(event, isCompleted),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildColoredTimestamp(TripEvent event, bool isCompleted) {
+    if (!isCompleted) return const SizedBox.shrink();
+
+    String formattedTime = event.timestamp!.toLocal().toString().substring(11, 16);
+    Color timeColor = Colors.grey.shade600;
+    String statusSuffix = "";
+
+    // Semáforo solo para el paso 2 (Llegada al punto)
+    if (event.status == TripStatus.EN_PUNTO_ENCUENTRO && event.expectedTime != null && event.timestamp != null) {
+      final diff = event.timestamp!.difference(event.expectedTime!).inMinutes;
+      if (diff < -5) {
+        timeColor = Colors.green[700]!;
+        statusSuffix = " (Temprano)";
+      } else if (diff >= -5 && diff <= 5) {
+        timeColor = Colors.amber[800]!;
+        statusSuffix = " (A tiempo)";
+      } else {
+        timeColor = Colors.red[700]!;
+        statusSuffix = " (Tarde)";
+      }
+    }
+
+    return Text(
+      'Hora: $formattedTime$statusSuffix',
+      style: TextStyle(fontSize: 12, color: timeColor, fontWeight: FontWeight.w600),
+    );
+  }
+
+
+  Widget _buildTimelineConnector(bool isCompleted) {
+    return Container(
+      margin: const EdgeInsets.only(left: 10, bottom: 0),
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      height: 20,
+      width: 2,
+      color: isCompleted ? Colors.green.shade200 : Colors.grey.shade200,
+    );
+  }
+
+  Widget _buildPaymentSection() {
+    bool isPaid = _currentStatus == TripStatus.PAGO_COMPLETADO;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.grey.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4)),
+        ],
       ),
-      const SizedBox(width: 8),
-      const Expanded(child: SizedBox.shrink()),
-    ],
-  );
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('TOTAL A COBRAR:',
+              style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey)),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(children: [
+                const Icon(Icons.payments_outlined, color: Colors.green, size: 28),
+                const SizedBox(width: 10),
+                const Text("Efectivo",
+                    style:
+                    TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+
+                // Línea separadora vertical
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 15),
+                  height: 25,
+                  width: 1.5,
+                  color: Colors.grey.shade300,
+                ),
+
+                // MONTO
+                Text(
+                  _montoViaje,
+                  style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.blue.shade900),
+                )
+              ]),
+
+              // LADO DERECHO: Check si está pagado
+              if (isPaid)
+                const Icon(Icons.check_circle, color: Colors.green, size: 28),
+            ],
+          ),
+          const SizedBox(height: 20),
+          if (!isPaid)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _currentStatus = TripStatus.PAGO_COMPLETADO;
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('Pago confirmado. Fin del servicio.')),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.black87, // Color oscuro elegante
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: const Text("Confirmar Cobro",
+                      style: TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold))),
+            )
+          else
+            Container(
+                padding: const EdgeInsets.all(12),
+                width: double.infinity,
+                decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.green.shade200)),
+                child: Center(
+                    child: Text("Cobro Realizado Correctamente",
+                        style: TextStyle(
+                            color: Colors.green.shade800,
+                            fontWeight: FontWeight.bold))))
+        ],
+      ),
+    );
+  }
 }

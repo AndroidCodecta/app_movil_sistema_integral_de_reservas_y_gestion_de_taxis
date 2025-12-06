@@ -9,19 +9,30 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="965ace54-6646-4649-9de4-8280f33cd901" name="Changes" comment="Cambios en vistas">
-      <change afterPath="$PROJECT_DIR$/android/app/src/main/res/xml/network_security_config.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/lib/Views/Viaje/viaje_page.dart" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/lib/utils/reservas_service.dart" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/lib/utils/solicitud_service.dart" afterDir="false" />
+    <list default="true" id="965ace54-6646-4649-9de4-8280f33cd901" name="Changes" comment="Se agregaron conexiones api ( Se necesitan ordenar)">
+      <change afterPath="$PROJECT_DIR$/lib/utils/viajes_service.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/libraries/Dart_Packages.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/libraries/Dart_Packages.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/libraries/Flutter_Plugins.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/libraries/Flutter_Plugins.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/android/app/src/main/AndroidManifest.xml" beforeDir="false" afterPath="$PROJECT_DIR$/android/app/src/main/AndroidManifest.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/Views/Chats/chat_page.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/Views/Chats/chat_page.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/Views/Chats/chat_user_list_page.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/Views/Chats/chat_user_list_page.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/Views/Historial/historial_detalle.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/Views/Historial/historial_detalle.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/Views/Historial/historial_page.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/Views/Historial/historial_page.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/Views/Inicio/inicio_page.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/Views/Inicio/inicio_page.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/Views/Login/login_page.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/Views/Login/login_page.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/Views/Maps/maps_page.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/Views/Maps/maps_page.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/Views/Profile/profile_page.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/Views/Profile/profile_page.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/Views/Reservas/reservas_detalle.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/Views/Reservas/reservas_detalle.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/Views/Reservas/reservas_page.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/Views/Reservas/reservas_page.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/Views/Solicitudes/solicitudes_page.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/Views/Solicitudes/solicitudes_page.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/Views/Viaje/viaje_page.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/Views/Viaje/viaje_page.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/Views/widgets/bottom_navigation.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/Views/widgets/bottom_navigation.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/main.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/main.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/utils/reservas_service.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/utils/reservas_service.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/utils/session_manager.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/utils/session_manager.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/utils/solicitud_service.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/utils/solicitud_service.dart" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -48,8 +59,8 @@
     <option name="RECENT_TEMPLATES">
       <list>
         <option value="Class" />
-        <option value="Dart File" />
         <option value="valueResourceFile" />
+        <option value="Dart File" />
       </list>
     </option>
   </component>
@@ -74,10 +85,19 @@
     &quot;accountId&quot;: &quot;d3c6b854-f800-4eaa-bcaf-cb14b81e6d34&quot;
   }
 }</component>
+  <component name="HighlightingSettingsPerFile">
+    <setting file="file://$PROJECT_DIR$/lib/utils/solicitud_service.dart" root0="SKIP_HIGHLIGHTING" />
+  </component>
+  <component name="ProblemsViewState">
+    <option name="selectedTabId" value="CurrentFile" />
+  </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 4
 }</component>
   <component name="ProjectId" id="33Vsae9UkLNFI19VFfuGFabuH9k" />
+  <component name="ProjectLevelVcsManager">
+    <ConfirmationsSetting value="2" id="Add" />
+  </component>
   <component name="ProjectView">
     <navigator currentView="ProjectPane" proportions="" version="1" />
     <panes>
@@ -87,7 +107,6 @@
     </panes>
   </component>
   <component name="ProjectViewState">
-    <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
   <component name="PropertiesComponent"><![CDATA[{

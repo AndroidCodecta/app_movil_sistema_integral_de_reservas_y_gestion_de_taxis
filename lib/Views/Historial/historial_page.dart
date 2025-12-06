@@ -1,16 +1,10 @@
-// Archivo: 'historial_page.dart'
-
 import 'package:flutter/material.dart';
 import 'dart:async';
-// 🚨 Importación clave para la navegación a la vista de detalle
 import 'historial_detalle.dart';
 import '/utils/reservas_service.dart';
 import '../widgets/header.dart';
 import '../widgets/bottom_navigation.dart';
 
-// =======================================================
-// MODELO DE DATOS PARA EL HISTORIAL (Para la lista)
-// =======================================================
 class ReservaHistorial {
   final String id;
   final String cliente;
@@ -29,10 +23,9 @@ class ReservaHistorial {
   });
 
   factory ReservaHistorial.fromMap(Map<String, dynamic> map) {
-    // --- 1. MANEJO SEGURO DEL CLIENTE ---
     String nombreCliente = 'Usuario Desconocido';
     final Map<String, dynamic>? clienteData =
-        map['cliente'] as Map<String, dynamic>?;
+    map['cliente'] as Map<String, dynamic>?;
 
     if (clienteData != null) {
       final String nombres = clienteData['nombres']?.toString() ?? '';
@@ -44,7 +37,6 @@ class ReservaHistorial {
           : 'Cliente Desconocido';
     }
 
-    // --- 2. MANEJO SEGURO DE FECHA Y HORA ---
     final String fechaHora = map['fecha_hora']?.toString() ?? '';
     List<String> partesFechaHora = fechaHora.split(' ');
 
@@ -54,7 +46,7 @@ class ReservaHistorial {
     if (partesFechaHora.length > 1) {
       final String horaCompleta = partesFechaHora[1];
       if (horaCompleta.length >= 5) {
-        hora = horaCompleta.substring(0, 5); // Toma HH:MM
+        hora = horaCompleta.substring(0, 5);
       }
     }
 
@@ -64,16 +56,13 @@ class ReservaHistorial {
       fechaReserva: fecha,
       horaRecogida: hora,
       direccionEncuentro:
-          map['d_encuentro']?.toString() ??
+      map['d_encuentro']?.toString() ??
           'Dirección de encuentro no disponible',
       dDestino: map['d_destino']?.toString() ?? 'Destino no disponible',
     );
   }
 }
 
-// =======================================================
-// PANTALLA DE HISTORIAL
-// =======================================================
 class HistorialPage extends StatefulWidget {
   const HistorialPage({super.key});
 
@@ -100,9 +89,8 @@ class _HistorialPageState extends State<HistorialPage> {
     });
 
     try {
-      // ⚠️ Usando fetchReservasList, ajusta esto si tienes una función específica para historial (ej: fetchReservasHistorial)
       final List<Map<String, dynamic>> rawData =
-          await ReservasService.fetchReservasList();
+      await ReservasService.fetchReservasList();
 
       final List<ReservaHistorial> historial = rawData
           .map((map) => ReservaHistorial.fromMap(map))
@@ -129,9 +117,7 @@ class _HistorialPageState extends State<HistorialPage> {
     }
   }
 
-  // --- FUNCIÓN DE NAVEGACIÓN ACTIVA ---
   void _goToDetails(String id) async {
-    // 🚨 NAVEGACIÓN A HISTORIAL_DETALLE.DART
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
@@ -139,7 +125,6 @@ class _HistorialPageState extends State<HistorialPage> {
       ),
     );
 
-    // Opcional: Recargar si la vista de detalle retorna 'true'
     if (result == true) {
       _loadHistorial();
     }
@@ -155,42 +140,41 @@ class _HistorialPageState extends State<HistorialPage> {
           Expanded(
             child: _isLoading
                 ? const Center(
-                    child: CircularProgressIndicator(color: Color(0xFFFFD60A)),
-                  )
+              child: CircularProgressIndicator(color: Color(0xFFFFD60A)),
+            )
                 : _errorMessage != null
                 ? Center(
-                    child: Text(
-                      'Error de Conexión: $_errorMessage',
-                      textAlign: TextAlign.center,
-                    ),
-                  )
+              child: Text(
+                'Error de Conexión: $_errorMessage',
+                textAlign: TextAlign.center,
+              ),
+            )
                 : RefreshIndicator(
-                    onRefresh: _loadHistorial,
-                    child: _finishedReservations.isEmpty
-                        ? ListView(
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            children: [
-                              SizedBox(
-                                height: MediaQuery.of(context).size.height / 3,
-                              ),
-                              _buildEmptyState(),
-                            ],
-                          )
-                        : ListView.builder(
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            padding: const EdgeInsets.all(16),
-                            itemCount: _finishedReservations.length,
-                            itemBuilder: (context, index) {
-                              final reserva = _finishedReservations[index];
-                              return HistorialCard(
-                                reserva: reserva,
-                                onTap: () => _goToDetails(reserva.id),
-                              );
-                            },
-                          ),
+              onRefresh: _loadHistorial,
+              child: _finishedReservations.isEmpty
+                  ? ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: [
+                  SizedBox(
+                    height: MediaQuery.of(context).size.height / 3,
                   ),
+                  _buildEmptyState(),
+                ],
+              )
+                  : ListView.builder(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16),
+                itemCount: _finishedReservations.length,
+                itemBuilder: (context, index) {
+                  final reserva = _finishedReservations[index];
+                  return HistorialCard(
+                    reserva: reserva,
+                    onTap: () => _goToDetails(reserva.id),
+                  );
+                },
+              ),
+            ),
           ),
-          const CustomBottomNavBar(),
         ],
       ),
     );
@@ -207,9 +191,6 @@ class _HistorialPageState extends State<HistorialPage> {
   }
 }
 
-// =======================================================
-// TARJETA DE HISTORIAL (Estilo de ReservaDetalleCard)
-// =======================================================
 class HistorialCard extends StatelessWidget {
   final ReservaHistorial reserva;
   final VoidCallback onTap;
@@ -241,7 +222,6 @@ class HistorialCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 1. HEADER AMARILLO: ID de Viaje
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 12),
@@ -262,8 +242,6 @@ class HistorialCard extends StatelessWidget {
                 ),
               ),
             ),
-
-            // 2. CUERPO DE DETALLES
             Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -281,8 +259,6 @@ class HistorialCard extends StatelessWidget {
                     reserva.direccionEncuentro,
                   ),
                   const SizedBox(height: 12),
-
-                  // 🚨 Botón "Ver Detalles"
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(

@@ -1,12 +1,8 @@
-// Archivo: 'reservas_page.dart'
-
 import 'package:flutter/material.dart';
 import '/utils/reservas_service.dart';
-import 'reservas_detalle.dart'; // Importa la pantalla de detalle
+import 'reservas_detalle.dart';
 import '../widgets/header.dart';
 import '../widgets/bottom_navigation.dart';
-
-// --- WIDGET PRINCIPAL: ReservasScreen ---
 
 class ReservasScreen extends StatefulWidget {
   const ReservasScreen({super.key});
@@ -16,7 +12,6 @@ class ReservasScreen extends StatefulWidget {
 }
 
 class _ReservasScreenState extends State<ReservasScreen> {
-  // Usamos fetchReservasList (todas las reservas activas)
   List<Map<String, dynamic>> reservas = [];
   bool _isLoading = true;
   String? _errorMessage;
@@ -27,7 +22,6 @@ class _ReservasScreenState extends State<ReservasScreen> {
     _loadReservas();
   }
 
-  // Función de carga de datos que se usa para la carga inicial y el refresh
   Future<void> _loadReservas() async {
     setState(() {
       _isLoading = true;
@@ -39,9 +33,6 @@ class _ReservasScreenState extends State<ReservasScreen> {
 
       if (mounted) {
         setState(() {
-          // Asumo que fetchReservasList devuelve List<Map<String, dynamic>>
-          // Si devuelve List<dynamic>, podría ser necesario castear aquí, pero
-          // confiaremos en la inferencia por el momento, ya que la falla es en el card.
           reservas = reservasData;
         });
       }
@@ -61,7 +52,6 @@ class _ReservasScreenState extends State<ReservasScreen> {
     }
   }
 
-  // Recarga la lista si la pantalla de detalle devuelve 'true'
   void _onDetailClosed(dynamic result) {
     if (result == true) {
       _loadReservas();
@@ -75,65 +65,62 @@ class _ReservasScreenState extends State<ReservasScreen> {
       body: Column(
         children: [
           const LogoHeader(titulo: 'Reservas', estiloLogin: false),
-
           Expanded(
             child: _isLoading
                 ? const Center(
-                    child: CircularProgressIndicator(color: Color(0xFFFFD60A)),
-                  )
+              child: CircularProgressIndicator(color: Color(0xFFFFD60A)),
+            )
                 : _errorMessage != null
                 ? Center(child: Text('Error: $_errorMessage'))
                 : reservas.isEmpty
                 ? RefreshIndicator(
-                    onRefresh: _loadReservas,
-                    child: SingleChildScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      child: SizedBox(
-                        height: MediaQuery.of(context).size.height - 200,
-                        child: _buildEmptyState(),
-                      ),
-                    ),
-                  )
+              onRefresh: _loadReservas,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: SizedBox(
+                  height:
+                  MediaQuery.of(context).size.height - 200,
+                  child: _buildEmptyState(),
+                ),
+              ),
+            )
                 : RefreshIndicator(
-                    onRefresh: _loadReservas,
-                    child: ListView.builder(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.all(16.0),
-                      itemCount: reservas.length,
-                      itemBuilder: (context, index) {
-                        final reservaData = reservas[index];
-                        final int reservaId = reservaData["id"] ?? 0;
+              onRefresh: _loadReservas,
+              child: ListView.builder(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16.0),
+                itemCount: reservas.length,
+                itemBuilder: (context, index) {
+                  final reservaData = reservas[index];
+                  final int reservaId = reservaData["id"] ?? 0;
 
-                        return ReservaDetalleCard(
-                          reservaData: reservaData,
-                          onTap: (id) async {
-                            final result = await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    ReservaDetalleCompletoScreen(reservaId: id),
-                              ),
-                            );
-                            _onDetailClosed(result);
-                          },
-                        );
-                      },
-                    ),
-                  ),
+                  return ReservaDetalleCard(
+                    reservaData: reservaData,
+                    onTap: (id) async {
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              ReservaDetalleCompletoScreen(
+                                  reservaId: id),
+                        ),
+                      );
+                      _onDetailClosed(result);
+                    },
+                  );
+                },
+              ),
+            ),
           ),
         ],
       ),
-      bottomNavigationBar: const CustomBottomNavBar(),
     );
   }
 
-  // --- WIDGET DE ESTADO VACÍO ---
   Widget _buildEmptyState() {
     return const Center(child: Text("No tienes reservas 🚗"));
   }
 }
-
-// --- WIDGET DE TARJETA: ReservaDetalleCard (Utilizado en la lista) ---
 
 class ReservaDetalleCard extends StatelessWidget {
   final Map<String, dynamic> reservaData;
@@ -149,14 +136,12 @@ class ReservaDetalleCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final int id = reservaData["id"] ?? 0;
 
-    // 🚨 CORRECCIÓN CLAVE: Casteamos el mapa anidado a Map<String, dynamic>
-    // Esto asegura que podemos acceder a los campos "nombres" y "apellidos" correctamente.
     final Map<String, dynamic> cliente = (reservaData["cliente"] is Map)
         ? reservaData["cliente"] as Map<String, dynamic>
         : <String, dynamic>{};
 
     final nombreCliente =
-        "${cliente["nombres"] ?? ""} ${cliente["apellidos"] ?? ""}".trim();
+    "${cliente["nombres"] ?? ""} ${cliente["apellidos"] ?? ""}".trim();
 
     final fechaHora = reservaData["fecha_hora"]?.toString() ?? "";
     final fecha = fechaHora.isNotEmpty ? fechaHora.split(" ")[0] : "---";
@@ -186,7 +171,6 @@ class ReservaDetalleCard extends StatelessWidget {
         ),
         child: Column(
           children: [
-            // Header amarillo
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 12),
@@ -207,8 +191,6 @@ class ReservaDetalleCard extends StatelessWidget {
                 ),
               ),
             ),
-
-            // Contenido de la reserva
             Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -220,7 +202,6 @@ class ReservaDetalleCard extends StatelessWidget {
                   const SizedBox(height: 8),
                   _buildInfoRow('Dirección de encuentro:', direccion),
                   const SizedBox(height: 12),
-
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(

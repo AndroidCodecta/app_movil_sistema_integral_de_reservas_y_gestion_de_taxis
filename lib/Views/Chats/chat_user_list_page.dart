@@ -17,41 +17,38 @@ class ChatUserListPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[100],
-      body: SafeArea(
-        child: Column(
-          children: [
-            const LogoHeader(titulo: 'Usuarios', estiloLogin: false),
-            Expanded(
-              child: ListView.separated(
-                padding: const EdgeInsets.all(16),
-                itemCount: usuarios.length,
-                separatorBuilder: (_, __) => const Divider(),
-                itemBuilder: (context, index) {
-                  final usuario = usuarios[index];
-                  return ListTile(
-                    leading: CircleAvatar(child: Text(usuario['nombre']![0])),
-                    title: Text(usuario['nombre']!),
-                    subtitle: Text(usuario['correo']!),
-                    trailing: const Icon(Icons.chat_bubble_outline),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ChatPage(
-                            nombre: usuario['nombre']!,
-                            correo: usuario['correo']!,
-                          ),
+      body: Column(
+        children: [
+          const LogoHeader(titulo: 'Usuarios', estiloLogin: false),
+          Expanded(
+            child: ListView.separated(
+              padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
+              itemCount: usuarios.length,
+              separatorBuilder: (_, __) => const Divider(),
+              itemBuilder: (context, index) {
+                final usuario = usuarios[index];
+                return ListTile(
+                  leading: CircleAvatar(child: Text(usuario['nombre']![0])),
+                  title: Text(usuario['nombre']!),
+                  subtitle: Text(usuario['correo']!),
+                  trailing: const Icon(Icons.chat_bubble_outline),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ChatPage(
+                          nombre: usuario['nombre']!,
+                          correo: usuario['correo']!,
                         ),
-                      );
-                    },
-                  );
-                },
-              ),
+                      ),
+                    );
+                  },
+                );
+              },
             ),
-          ],
-        ),
+          ),
+        ],
       ),
-      bottomNavigationBar: const CustomBottomNavBar(),
     );
   }
 }

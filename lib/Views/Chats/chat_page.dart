@@ -49,21 +49,16 @@ class _ChatPageState extends State<ChatPage> {
           ),
           Expanded(
             child: ListView.builder(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
               itemCount: mensajes.length,
               itemBuilder: (context, index) {
                 final mensaje = mensajes[index];
                 final esMio = mensaje['remitente'] == 'yo';
                 return Align(
-                  alignment: esMio
-                      ? Alignment.centerRight
-                      : Alignment.centerLeft,
+                  alignment: esMio ? Alignment.centerRight : Alignment.centerLeft,
                   child: Container(
                     margin: const EdgeInsets.symmetric(vertical: 4),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     decoration: BoxDecoration(
                       color: esMio ? Colors.amber[200] : Colors.white,
                       borderRadius: BorderRadius.circular(12),

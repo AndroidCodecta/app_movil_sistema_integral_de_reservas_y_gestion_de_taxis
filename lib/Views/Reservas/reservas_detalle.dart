@@ -1,14 +1,32 @@
-// Archivo: 'reservas_detalle.dart'
-
 import 'package:flutter/material.dart';
-import '/utils/reservas_service.dart'; // ¡USAMOS EL SERVICE CORREGIDO!
+import '/utils/reservas_service.dart';
 import '../widgets/header.dart';
 import '../widgets/bottom_navigation.dart';
-import '../Maps/maps_page.dart'; // Asegúrate de que esta ruta es correcta
+import '../Maps/maps_page.dart';
 
-// =================================================================
-// CLASE MODELO (ReservaDetalleModel)
-// =================================================================
+class ReservasDetalleTipoPago {
+  final String tipoPago;
+  final String monto;
+  final String metodoPago;
+
+  ReservasDetalleTipoPago({
+    required this.tipoPago,
+    required this.monto,
+    required this.metodoPago,
+  });
+
+  factory ReservasDetalleTipoPago.fromJson(Map<String, dynamic> data) {
+    final pagoAdicional = (data["pago_adicional"] is Map)
+        ? data["pago_adicional"] as Map<String, dynamic>
+        : <String, dynamic>{};
+
+    return ReservasDetalleTipoPago(
+        tipoPago: pagoAdicional["descripcion"]?.toString() ?? "N/A",
+        monto: pagoAdicional["monto"]?.toString() ?? "0.00",
+        metodoPago: pagoAdicional["metodo"]?.toString() ?? "N/A");
+  }
+}
+
 class ReservaDetalleModel {
   final int id;
   final String cliente;
@@ -17,13 +35,11 @@ class ReservaDetalleModel {
   final String tiempoEspera;
   final String direccionEncuentro;
   final String direccionDestino;
-
-  // Estos campos ahora son más tolerantes a la ausencia de datos
   final String placa;
   final String marca;
   final String anioModelo;
+  final ReservasDetalleTipoPago? detallePago;
 
-  // ... (Constructor sin cambios)
   ReservaDetalleModel({
     required this.id,
     required this.cliente,
@@ -35,20 +51,26 @@ class ReservaDetalleModel {
     required this.placa,
     required this.marca,
     required this.anioModelo,
+    this.detallePago,
   });
 
-  // Método de fábrica para crear una instancia desde un mapa JSON (REFORZADO)
   factory ReservaDetalleModel.fromJson(Map<String, dynamic> data) {
-    // 1. Manejo del Cliente: Si no es un Mapa<String, dynamic>, usamos un mapa vacío.
     final cliente = (data["cliente"] is Map)
         ? data["cliente"] as Map<String, dynamic>
         : <String, dynamic>{};
 
-    // 2. Manejo del Vehículo: Si no es un Mapa<String, dynamic>, usamos un mapa vacío.
-    // Esto previene el _TypeError si "vehiculo" es null o de tipo incorrecto.
     final vehiculo = (data["vehiculo"] is Map)
         ? data["vehiculo"] as Map<String, dynamic>
         : <String, dynamic>{};
+
+    ReservasDetalleTipoPago? pagoDetalle;
+    if (data.containsKey("pago_adicional") && data["pago_adicional"] != null) {
+      try {
+        pagoDetalle = ReservasDetalleTipoPago.fromJson(data);
+      } catch (e) {
+        debugPrint("Error al parsear el detalle de pago: $e");
+      }
+    }
 
     final fechaHora = data["fecha_hora"]?.toString() ?? "";
 
@@ -63,18 +85,14 @@ class ReservaDetalleModel {
       tiempoEspera: data["tiempo_espera"]?.toString() ?? "N/A",
       direccionEncuentro: data["d_encuentro"]?.toString() ?? "N/A",
       direccionDestino: data["d_destino"]?.toString() ?? "N/A",
-
-      // Detalle del vehículo: Si el mapa vehiculo está vacío, usa N/A.
       placa: vehiculo["placa"]?.toString() ?? "N/A",
       marca: vehiculo["marca"]?.toString() ?? "N/A",
       anioModelo: vehiculo["año_modelo"]?.toString() ?? "N/A",
+      detallePago: pagoDetalle,
     );
   }
 }
 
-// =================================================================
-// PANTALLA DE DETALLE (ReservaDetalleCompletoScreen)
-// =================================================================
 class ReservaDetalleCompletoScreen extends StatefulWidget {
   final int reservaId;
   const ReservaDetalleCompletoScreen({super.key, required this.reservaId});
@@ -96,7 +114,6 @@ class _ReservaDetalleCompletoScreenState
     _fetchDetail();
   }
 
-  // Función de carga de datos para el detalle
   Future<void> _fetchDetail() async {
     setState(() {
       _isLoading = true;
@@ -108,7 +125,7 @@ class _ReservaDetalleCompletoScreenState
     if (data != null && mounted) {
       try {
         final ReservaDetalleModel reservaCompleta =
-            ReservaDetalleModel.fromJson(data);
+        ReservaDetalleModel.fromJson(data);
 
         setState(() {
           _reservaDetalle = reservaCompleta;
@@ -122,7 +139,7 @@ class _ReservaDetalleCompletoScreenState
     } else if (mounted) {
       setState(() {
         _errorMessage =
-            "No se pudo cargar el detalle de la reserva ID: ${widget.reservaId}.";
+        "No se pudo cargar el detalle de la reserva ID: ${widget.reservaId}.";
       });
     }
 
@@ -171,8 +188,9 @@ class _ReservaDetalleCompletoScreenState
     );
   }
 
-  // CONTENEDOR PRINCIPAL: Usa BoxDecoration
   Widget _buildDetailContainer(ReservaDetalleModel reserva) {
+    final tipoPago = reserva.detallePago;
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -189,7 +207,6 @@ class _ReservaDetalleCompletoScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header principal
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 14),
@@ -215,15 +232,11 @@ class _ReservaDetalleCompletoScreenState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 1. Información General
                 _buildSectionTitle('Información de la Reserva'),
                 _buildInfoRow('Fecha:', reserva.fechaReserva),
                 _buildInfoRow('Hora:', reserva.horaRecogida),
                 _buildInfoRow('Tiempo de Espera:', reserva.tiempoEspera),
-
                 const Divider(height: 30),
-
-                // 2. Cliente y Ubicaciones
                 _buildSectionTitle('Cliente y Ubicaciones'),
                 _buildInfoRow('Cliente:', reserva.cliente),
                 _buildInfoRow(
@@ -234,10 +247,20 @@ class _ReservaDetalleCompletoScreenState
                   'Dirección de Destino:',
                   reserva.direccionDestino,
                 ),
-
                 const Divider(height: 30),
-
-                // 3. Auto Asignado
+                _buildSectionTitle('Método de Pago'),
+                if (tipoPago != null)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildInfoRow('Tipo de Pago:', tipoPago.tipoPago),
+                      _buildInfoRow('Monto:', 'S/ ${tipoPago.monto}'),
+                      _buildInfoRow('Método:', tipoPago.metodoPago),
+                    ],
+                  )
+                else
+                  _buildInfoRow('Información de Pago:', 'No especificado'),
+                const Divider(height: 30),
                 _buildSectionTitle('Detalles del Vehículo'),
                 Row(
                   children: [
@@ -277,10 +300,14 @@ class _ReservaDetalleCompletoScreenState
   Widget _buildActionButton(BuildContext context) {
     return ElevatedButton.icon(
       onPressed: () {
-        // Enviar a la pantalla de Mapas
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => const MapsScreen()),
+          MaterialPageRoute(
+            builder: (context) => MapsScreen(
+              viajeIniciado: true,
+              reservaId: _reservaDetalle?.id,
+            ),
+          ),
         );
       },
       icon: const Icon(Icons.navigation_sharp, size: 28),
@@ -308,42 +335,41 @@ class _ReservaDetalleCompletoScreenState
           Expanded(
             child: _isLoading
                 ? const Center(
-                    child: CircularProgressIndicator(color: Color(0xFFFFD60A)),
-                  )
+              child: CircularProgressIndicator(color: Color(0xFFFFD60A)),
+            )
                 : _errorMessage != null
                 ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(_errorMessage!),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: _fetchDetail,
-                          child: const Text('Reintentar Carga'),
-                        ),
-                      ],
-                    ),
-                  )
-                : RefreshIndicator(
-                    onRefresh: _fetchDetail,
-                    child: SingleChildScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (_reservaDetalle != null)
-                            _buildDetailContainer(_reservaDetalle!),
-                          const SizedBox(height: 20),
-                          _buildActionButton(context),
-                        ],
-                      ),
-                    ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(_errorMessage!),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _fetchDetail,
+                    child: const Text('Reintentar Carga'),
                   ),
+                ],
+              ),
+            )
+                : RefreshIndicator(
+              onRefresh: _fetchDetail,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (_reservaDetalle != null)
+                      _buildDetailContainer(_reservaDetalle!),
+                    const SizedBox(height: 20),
+                    _buildActionButton(context),
+                  ],
+                ),
+              ),
+            ),
           ),
         ],
       ),
-      bottomNavigationBar: const CustomBottomNavBar(),
     );
   }
 }

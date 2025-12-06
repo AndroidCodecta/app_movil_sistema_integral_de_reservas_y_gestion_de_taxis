@@ -1,6 +1,6 @@
-// Archivo: 'solicitudes_page.dart'
 import 'package:flutter/material.dart';
-import '../../utils/session_manager.dart'; // Importaciones originales
+import 'package:flutter/services.dart';
+import '../../utils/session_manager.dart';
 import '../../utils/solicitud_service.dart';
 import '../widgets/header.dart';
 import '../widgets/bottom_navigation.dart';
@@ -13,7 +13,6 @@ class SolicitudesPage extends StatefulWidget {
 }
 
 class _SolicitudesPageState extends State<SolicitudesPage> {
-  // Las solicitudes ahora contienen la data de la RESERVA (que incluye cliente, etc.)
   List<Map<String, dynamic>> solicitudes = [];
   bool _isLoading = true;
 
@@ -23,23 +22,16 @@ class _SolicitudesPageState extends State<SolicitudesPage> {
     _loadSolicitudes();
   }
 
-  // Función de carga de solicitudes (ahora más simple gracias al SolicitudService corregido)
   Future<void> _loadSolicitudes() async {
     if (solicitudes.isEmpty) {
-      setState(() {
-        _isLoading = true;
-      });
+      setState(() => _isLoading = true);
     }
 
     try {
       await Future.delayed(const Duration(milliseconds: 300));
-
-      // 1. Llamamos al servicio (que ahora extrae 'reservas_solicitudes'['data'])
       final rawData = await SolicitudService.listarSolicitudes();
-
-      // 2. Convertimos la data limpia
       final List<Map<String, dynamic>> registros =
-          List<Map<String, dynamic>>.from(rawData);
+      List<Map<String, dynamic>>.from(rawData);
 
       if (mounted) {
         setState(() {
@@ -50,13 +42,10 @@ class _SolicitudesPageState extends State<SolicitudesPage> {
     } catch (e) {
       debugPrint("Error cargando solicitudes: $e");
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-        // Muestra el error al usuario
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error al cargar solicitudes: ${e.toString()}'),
+            content: Text('Error al cargar: ${e.toString()}'),
             backgroundColor: Colors.red,
           ),
         );
@@ -71,53 +60,50 @@ class _SolicitudesPageState extends State<SolicitudesPage> {
         estado: estado,
       );
 
-      final mensaje = estado == 1
-          ? 'Solicitud aceptada correctamente'
-          : 'Solicitud rechazada';
+      final mensaje =
+      estado == 1 ? 'Solicitud aceptada' : 'Solicitud rechazada';
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(mensaje),
-          backgroundColor: estado == 1 ? Colors.green : Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(mensaje),
+            backgroundColor: estado == 1 ? Colors.green : Colors.red,
+          ),
+        );
+      }
 
-      // El ID de la solicitud de chofer está ANIDADO
-      // Lo que se debe eliminar de la lista local es la RESERVA,
-      // cuyo ID es el 'id' del elemento de la lista.
       setState(() {
-        // Usamos el id de la SOLICITUD_CHOFER para la condición de eliminación
         solicitudes.removeWhere((s) {
           final solicitudChofer =
-              s['solicitud_chofer'] as Map<String, dynamic>?;
-          final idSolicitudChofer = solicitudChofer?['id'];
-
-          // Compara el ID de la solicitud_chofer con el ID que se acaba de responder
-          return idSolicitudChofer != null &&
-              idSolicitudChofer.toString() == solicitudChoferId.toString();
+          s['solicitud_chofer'] as Map<String, dynamic>?;
+          final id = solicitudChofer?['id'];
+          return id != null && id.toString() == solicitudChoferId.toString();
         });
       });
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
-  // Widget para el estado de lista vacía que permite recargar
   Widget _buildEmptyStateWithRefresh(BuildContext context) {
     return RefreshIndicator(
-      onRefresh: _loadSolicitudes, // Conecta la función de recarga
+      onRefresh: _loadSolicitudes,
       child: LayoutBuilder(
         builder: (context, constraints) {
           return SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             child: ConstrainedBox(
               constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: const Center(child: Text('No hay solicitudes pendientes')),
+              child: const Center(
+                child: Text('No hay asignaciones pendientes'),
+              ),
             ),
           );
         },
@@ -127,10 +113,15 @@ class _SolicitudesPageState extends State<SolicitudesPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[100],
-      body: SafeArea(
-        child: Column(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+      ),
+      child: Scaffold(
+        backgroundColor: Colors.grey[100],
+        extendBody: true,
+        body: Column(
           children: [
             const LogoHeader(titulo: 'Asignaciones', estiloLogin: false),
             Expanded(
@@ -139,73 +130,71 @@ class _SolicitudesPageState extends State<SolicitudesPage> {
                   : solicitudes.isEmpty
                   ? _buildEmptyStateWithRefresh(context)
                   : RefreshIndicator(
-                      onRefresh: _loadSolicitudes,
-                      child: ListView.builder(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.all(16),
-                        itemCount: solicitudes.length,
-                        itemBuilder: (context, index) {
-                          final s = solicitudes[index];
+                onRefresh: _loadSolicitudes,
+                child: ListView.separated(
+                  padding: const EdgeInsets.only(
+                      left: 16, right: 16, top: 0, bottom: 100),
+                  itemCount: solicitudes.length,
+                  separatorBuilder: (ctx, index) =>
+                  const SizedBox(height: 16),
+                  itemBuilder: (context, index) {
+                    final s = solicitudes[index];
+                    final reserva = s;
+                    final cliente = reserva['cliente'] ?? {};
+                    final solicitudChofer =
+                        reserva['solicitud_chofer'] ?? {};
 
-                          // La data de la reserva es 's' misma en este endpoint, pero
-                          // tu código original usaba 'reserva', lo corrijo para usar 's' directamente.
-                          // Pero lo más importante: extraemos la SOLICITUD_CHOFER para obtener el ID de respuesta.
-                          final reserva = s; // s es la reserva
-                          final cliente = reserva['cliente'] ?? {};
-                          final solicitudChofer =
-                              reserva['solicitud_chofer'] ?? {};
+                    final idSolicitudChofer = int.tryParse(
+                        solicitudChofer['id']?.toString() ??
+                            '0') ??
+                        0;
 
-                          // ESTA ES LA CLAVE PARA PASAR EL ID CORRECTO A LA FUNCIÓN DE RESPUESTA
-                          final idSolicitudChofer =
-                              int.tryParse(
-                                solicitudChofer['id']?.toString() ?? '0',
-                              ) ??
-                              0;
+                    final nombreCliente =
+                    '${cliente['nombres'] ?? ''} ${cliente['apellidos'] ?? ''}'
+                        .trim()
+                        .isEmpty
+                        ? 'Usuario'
+                        : '${cliente['nombres']} ${cliente['apellidos']}';
 
-                          final nombreCliente =
-                              '${cliente['nombres'] ?? ''} ${cliente['apellidos'] ?? ''}'
-                                  .trim()
-                                  .isEmpty
-                              ? 'Usuario'
-                              : '${cliente['nombres']} ${cliente['apellidos']}';
+                    final clienteTipo =
+                    (cliente['empresa_id'] != null)
+                        ? 'Por convenio'
+                        : 'Libre';
 
-                          final fechaCompleta =
-                              reserva['fecha_hora']?.toString() ?? '---';
-                          final partesFechaHora = fechaCompleta.split(' ');
-                          final fecha = partesFechaHora.isNotEmpty
-                              ? partesFechaHora[0]
-                              : '---';
-                          final hora = partesFechaHora.length > 1
-                              ? partesFechaHora[1]
-                              : '---';
+                    final fechaCompleta =
+                        reserva['fecha_hora']?.toString() ?? '---';
+                    final partesFecha = fechaCompleta.split(' ');
+                    final fecha = partesFecha.isNotEmpty
+                        ? partesFecha[0]
+                        : '---';
+                    final hora = partesFecha.length > 1
+                        ? partesFecha[1]
+                        : '---';
 
-                          final espera =
-                              reserva['tiempo_espera']?.toString() ?? '---';
-                          final direccion =
-                              reserva['d_encuentro']?.toString() ?? '---';
+                    final espera =
+                        reserva['tiempo_espera']?.toString() ?? '---';
+                    final direccion =
+                        reserva['d_encuentro']?.toString() ?? '---';
+                    final precio =
+                        reserva['precio']?.toString() ?? '---';
 
-                          return Column(
-                            children: [
-                              _SolicitudCard(
-                                cliente: nombreCliente,
-                                fecha: fecha,
-                                hora: hora,
-                                espera: espera,
-                                direccion: direccion,
-                                // Pasamos el ID de la solicitud_chofer ANIDADA
-                                onAceptar: () =>
-                                    _responderSolicitud(idSolicitudChofer, 1),
-                                onRechazar: () =>
-                                    _responderSolicitud(idSolicitudChofer, 0),
-                              ),
-                              const SizedBox(height: 16),
-                            ],
-                          );
-                        },
-                      ),
-                    ),
+                    return _SolicitudCard(
+                      cliente: nombreCliente,
+                      fecha: fecha,
+                      hora: hora,
+                      espera: espera,
+                      direccion: direccion,
+                      precio: precio,
+                      clienteTipo: clienteTipo,
+                      onAceptar: () =>
+                          _responderSolicitud(idSolicitudChofer, 1),
+                      onRechazar: () =>
+                          _responderSolicitud(idSolicitudChofer, 0),
+                    );
+                  },
+                ),
+              ),
             ),
-            const CustomBottomNavBar(),
           ],
         ),
       ),
@@ -214,12 +203,13 @@ class _SolicitudesPageState extends State<SolicitudesPage> {
 }
 
 class _SolicitudCard extends StatelessWidget {
-  // ... (El código de _SolicitudCard se mantiene igual)
   final String cliente;
   final String fecha;
   final String hora;
   final String espera;
   final String direccion;
+  final String precio;
+  final String clienteTipo;
   final VoidCallback onAceptar;
   final VoidCallback onRechazar;
 
@@ -229,23 +219,35 @@ class _SolicitudCard extends StatelessWidget {
     required this.hora,
     required this.espera,
     required this.direccion,
+    required this.precio,
+    required this.clienteTipo,
     required this.onAceptar,
     required this.onRechazar,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      elevation: 3,
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          )
+        ],
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 6),
+              padding: const EdgeInsets.symmetric(vertical: 8),
               decoration: BoxDecoration(
                 color: Colors.amber,
                 borderRadius: BorderRadius.circular(8),
@@ -257,58 +259,85 @@ class _SolicitudCard extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
             Text(
               'Cliente: $cliente',
-              style: const TextStyle(fontWeight: FontWeight.bold),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
-            const SizedBox(height: 4),
-            Text('Fecha de reserva: $fecha'),
-            const SizedBox(height: 4),
-            Row(children: [Text('Hora Recogida: $hora')]),
+            const SizedBox(height: 6),
+            Text('Fecha: $fecha  •  Hora: $hora'),
+            const SizedBox(height: 12),
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Tiempo de espera: ',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                Text(
+                  'Tipo: $clienteTipo',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 Text(
-                  espera,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  'S/ $precio',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      color: Colors.green),
                 ),
               ],
             ),
-            const SizedBox(height: 4),
-            Text('Dirección de encuentro: $direccion'),
             const SizedBox(height: 12),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                const Icon(Icons.timer, size: 16, color: Colors.grey),
+                const SizedBox(width: 4),
+                const Text(
+                  'Espera: ',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(espera),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.location_on, size: 16, color: Colors.grey),
+                const SizedBox(width: 4),
+                Expanded(child: Text('Dirección: $direccion')),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Row(
               children: [
                 Expanded(
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
                       foregroundColor: Colors.white,
+                      elevation: 0,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(12),
                       ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                     onPressed: onAceptar,
-                    child: const Text('Aceptar'),
+                    child:
+                    const Text('Aceptar', style: TextStyle(fontSize: 16)),
                   ),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.red,
                       foregroundColor: Colors.white,
+                      elevation: 0,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(12),
                       ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                     onPressed: onRechazar,
-                    child: const Text('Rechazar'),
+                    child:
+                    const Text('Rechazar', style: TextStyle(fontSize: 16)),
                   ),
                 ),
               ],

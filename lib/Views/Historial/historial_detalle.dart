@@ -1,13 +1,8 @@
-// Archivo: 'historial_detalle.dart'
-
 import 'package:flutter/material.dart';
 import '/utils/reservas_service.dart';
 import '../widgets/header.dart';
 import '../widgets/bottom_navigation.dart';
 
-// =================================================================
-// CLASE MODELO (ReservaHistorialDetalleModel)
-// =================================================================
 class ReservaHistorialDetalleModel {
   final String id;
   final String cliente;
@@ -56,7 +51,6 @@ class ReservaHistorialDetalleModel {
       tiempoEspera: data["tiempo_espera"]?.toString() ?? "N/A",
       direccionEncuentro: data["d_encuentro"]?.toString() ?? "N/A",
       direccionDestino: data["d_destino"]?.toString() ?? "N/A",
-
       placa: vehiculo["placa"]?.toString() ?? "N/A",
       marca: vehiculo["marca"]?.toString() ?? "N/A",
       anioModelo: vehiculo["año_modelo"]?.toString() ?? "N/A",
@@ -64,9 +58,6 @@ class ReservaHistorialDetalleModel {
   }
 }
 
-// =================================================================
-// PANTALLA DE DETALLE
-// =================================================================
 class HistorialDetalleScreen extends StatefulWidget {
   final String reservaId;
   const HistorialDetalleScreen({super.key, required this.reservaId});
@@ -86,23 +77,20 @@ class _HistorialDetalleScreenState extends State<HistorialDetalleScreen> {
     _fetchDetail();
   }
 
-  // Función de carga de datos para el detalle
   Future<void> _fetchDetail() async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
-    // Convertimos el ID de String a int para la llamada al servicio API, si es necesario.
     final int idNumerico = int.tryParse(widget.reservaId) ?? 0;
 
-    // ⚠️ Asegúrate que fetchReservaDetalle puede manejar el ID como int.
     final data = await ReservasService.fetchReservaDetalle(idNumerico);
 
     if (data != null && mounted) {
       try {
         final ReservaHistorialDetalleModel reservaCompleta =
-            ReservaHistorialDetalleModel.fromJson(data);
+        ReservaHistorialDetalleModel.fromJson(data);
 
         setState(() {
           _reservaDetalle = reservaCompleta;
@@ -116,7 +104,7 @@ class _HistorialDetalleScreenState extends State<HistorialDetalleScreen> {
     } else if (mounted) {
       setState(() {
         _errorMessage =
-            "No se pudo cargar el detalle de la reserva ID: ${widget.reservaId}.";
+        "No se pudo cargar el detalle de la reserva ID: ${widget.reservaId}.";
       });
     }
 
@@ -126,8 +114,6 @@ class _HistorialDetalleScreenState extends State<HistorialDetalleScreen> {
       });
     }
   }
-
-  // --- WIDGETS AUXILIARES ---
 
   Widget _buildInfoRow(String label, String value) {
     return Padding(
@@ -167,7 +153,6 @@ class _HistorialDetalleScreenState extends State<HistorialDetalleScreen> {
     );
   }
 
-  // CONTENEDOR PRINCIPAL
   Widget _buildDetailContainer(ReservaHistorialDetalleModel reserva) {
     return Container(
       decoration: BoxDecoration(
@@ -185,7 +170,6 @@ class _HistorialDetalleScreenState extends State<HistorialDetalleScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header principal
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 14),
@@ -211,15 +195,11 @@ class _HistorialDetalleScreenState extends State<HistorialDetalleScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 1. Información General
                 _buildSectionTitle('Información de la Reserva'),
                 _buildInfoRow('Fecha:', reserva.fechaReserva),
                 _buildInfoRow('Hora:', reserva.horaRecogida),
                 _buildInfoRow('Tiempo de Espera:', reserva.tiempoEspera),
-
                 const Divider(height: 30),
-
-                // 2. Cliente y Ubicaciones
                 _buildSectionTitle('Cliente y Ubicaciones'),
                 _buildInfoRow('Cliente:', reserva.cliente),
                 _buildInfoRow(
@@ -230,10 +210,7 @@ class _HistorialDetalleScreenState extends State<HistorialDetalleScreen> {
                   'Dirección de Destino:',
                   reserva.direccionDestino,
                 ),
-
                 const Divider(height: 30),
-
-                // 3. Auto Asignado
                 _buildSectionTitle('Detalles del Vehículo'),
                 Row(
                   children: [
@@ -270,11 +247,9 @@ class _HistorialDetalleScreenState extends State<HistorialDetalleScreen> {
     );
   }
 
-  // BOTÓN DE ACCIÓN PARA HISTORIAL: Vuelve atrás
   Widget _buildActionButton(BuildContext context) {
     return ElevatedButton.icon(
       onPressed: () {
-        // Vuelve a la pantalla anterior (HistorialPage)
         Navigator.pop(context);
       },
       icon: const Icon(Icons.arrow_back, size: 28),
@@ -292,8 +267,6 @@ class _HistorialDetalleScreenState extends State<HistorialDetalleScreen> {
     );
   }
 
-  // --- WIDGET BUILD PRINCIPAL ---
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -304,42 +277,41 @@ class _HistorialDetalleScreenState extends State<HistorialDetalleScreen> {
           Expanded(
             child: _isLoading
                 ? const Center(
-                    child: CircularProgressIndicator(color: Color(0xFFFFD60A)),
-                  )
+              child: CircularProgressIndicator(color: Color(0xFFFFD60A)),
+            )
                 : _errorMessage != null
                 ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(_errorMessage!),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: _fetchDetail,
-                          child: const Text('Reintentar Carga'),
-                        ),
-                      ],
-                    ),
-                  )
-                : RefreshIndicator(
-                    onRefresh: _fetchDetail,
-                    child: SingleChildScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (_reservaDetalle != null)
-                            _buildDetailContainer(_reservaDetalle!),
-                          const SizedBox(height: 20),
-                          _buildActionButton(context), // Botón de Volver
-                        ],
-                      ),
-                    ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(_errorMessage!),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _fetchDetail,
+                    child: const Text('Reintentar Carga'),
                   ),
+                ],
+              ),
+            )
+                : RefreshIndicator(
+              onRefresh: _fetchDetail,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (_reservaDetalle != null)
+                      _buildDetailContainer(_reservaDetalle!),
+                    const SizedBox(height: 20),
+                    _buildActionButton(context),
+                  ],
+                ),
+              ),
+            ),
           ),
         ],
       ),
-      bottomNavigationBar: const CustomBottomNavBar(),
     );
   }
 }

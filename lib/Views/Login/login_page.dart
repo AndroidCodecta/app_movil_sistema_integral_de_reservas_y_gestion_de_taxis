@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../Inicio/inicio_page.dart';
+import '../widgets/bottom_navigation.dart';
 import '/utils/session_manager.dart';
 import '../widgets/header.dart';
 import 'forgot_password_page.dart';
@@ -39,21 +40,18 @@ class _LoginPageState extends State<LoginPage> {
       final stopwatch = Stopwatch()..start();
 
       try {
-        // Use a timeout to avoid hanging long requests; Postman might be faster
-        // due to network/local conditions, but a timeout here gives better UX.
         final response = await http
             .post(
-              url,
-              headers: {"Content-Type": "application/json"},
-              body: jsonEncode({
-                "email": _emailController.text.trim(),
-                "password": _passwordController.text.trim(),
-              }),
-            )
+          url,
+          headers: {"Content-Type": "application/json"},
+          body: jsonEncode({
+            "email": _emailController.text.trim(),
+            "password": _passwordController.text.trim(),
+          }),
+        )
             .timeout(const Duration(seconds: 30));
 
         stopwatch.stop();
-        // ignore: avoid_print
         print('Login request time: ${stopwatch.elapsedMilliseconds} ms');
 
         if (response.statusCode == 200) {
@@ -74,7 +72,6 @@ class _LoginPageState extends State<LoginPage> {
                 ? solicitudesData
                 : (solicitudesData is Map ? [solicitudesData] : []);
 
-            // Persist token and userId quickly so UI can proceed, then store the rest in background
             await SessionManager.saveSessionFast(
               token: token,
               userId: userId,
@@ -83,11 +80,11 @@ class _LoginPageState extends State<LoginPage> {
               solicitudes: solicitudes,
             );
 
-            // Navegar inmediatamente a HomeScreen (percepción de velocidad)
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
-                builder: (context) => HomeScreen(reservas: reservas),
+                builder: (context) => MainLayoutScreen(
+                ),
               ),
             );
           } else {
@@ -194,20 +191,20 @@ class _LoginPageState extends State<LoginPage> {
                         obscureText: _obscurePassword,
                         decoration: _inputDecoration("Ingrese su contraseña")
                             .copyWith(
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  _obscurePassword
-                                      ? Icons.visibility
-                                      : Icons.visibility_off,
-                                  color: Colors.grey[600],
-                                ),
-                                onPressed: () {
-                                  setState(() {
-                                    _obscurePassword = !_obscurePassword;
-                                  });
-                                },
-                              ),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword
+                                  ? Icons.visibility
+                                  : Icons.visibility_off,
+                              color: Colors.grey[600],
                             ),
+                            onPressed: () {
+                              setState(() {
+                                _obscurePassword = !_obscurePassword;
+                              });
+                            },
+                          ),
+                        ),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
                             return 'Por favor ingrese su contraseña';
@@ -233,20 +230,20 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                           child: _isLoading
                               ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                    strokeWidth: 2,
-                                  ),
-                                )
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
                               : const Text(
-                                  'Iniciar sesión',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
+                            'Iniciar sesión',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 24),

@@ -1,19 +1,14 @@
-// Archivo: 'utils/reservas_service.dart'
-
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-// Asegúrate de que la ruta a SessionManager es correcta
 import 'session_manager.dart';
 
 class ReservasService {
-  // Constante de la URL base
   static const String BASE_URL = 'http://servidorcorman.dyndns.org:7019/api';
 
-  // Función interna para realizar la petición POST con autenticación
   static Future<Map<String, dynamic>?> _performPost(
-    String endpoint, {
-    int? reservaId,
-  }) async {
+      String endpoint, {
+        int? reservaId,
+      }) async {
     final token = await SessionManager.getToken();
     final idUser = await SessionManager.getUserId();
 
@@ -47,9 +42,6 @@ class ReservasService {
     }
   }
 
-  // ============================================================
-  // 1. OBTENER LA LISTA COMPLETA (Endpoint: /chofer/reservas)
-  // ============================================================
   static Future<List<Map<String, dynamic>>> fetchReservasList() async {
     final jsonData = await _performPost('chofer/reservas');
 
@@ -63,9 +55,6 @@ class ReservasService {
     }
   }
 
-  // ============================================================
-  // 2. OBTENER RESERVAS DEL DÍA (Endpoint: /chofer/reservas_dia)
-  // ============================================================
   static Future<List<Map<String, dynamic>>> fetchReservasDia() async {
     final jsonData = await _performPost('chofer/reservas_dia');
 
@@ -79,11 +68,9 @@ class ReservasService {
     }
   }
 
-  // --- 3. OBTENER EL DETALLE COMPLETO DE LA RESERVA ---
-  // Retorna un Map<String, dynamic> con todos los datos del detalle
   static Future<Map<String, dynamic>?> fetchReservaDetalle(
-    int reservaId,
-  ) async {
+      int reservaId,
+      ) async {
     final token = await SessionManager.getToken();
     final idUser = await SessionManager.getUserId();
 
@@ -91,7 +78,6 @@ class ReservasService {
       return null;
     }
 
-    // URL: /api/reservas_detalle/{id}
     final url = Uri.parse('$BASE_URL/chofer/reservas_detalle/$reservaId');
 
     try {
@@ -109,7 +95,6 @@ class ReservasService {
 
         if (responseData['status'] == 'success' &&
             responseData['data'] != null) {
-          // Retorna el objeto 'data'
           return responseData['data'] as Map<String, dynamic>;
         } else {
           return null;
@@ -128,19 +113,18 @@ class ReservasService {
     }
   }
 
-  // ============================================================
-  // 4. OBTENER LA LISTA COMPLETA DE HISTORIAL
-  // ============================================================
   static Future<List<Map<String, dynamic>>> fetchReservasHistorial() async {
-    final jsonData = await _performPost('chofer/reservas_aceptadas');
+    final jsonData = await _performPost('chofer/reservas_historial');
 
     if (jsonData != null &&
-        jsonData['status'] == 'success' &&
-        jsonData['reservas_aceptadas'] != null &&
-        jsonData['reservas_aceptadas']['data'] is List) {
+        jsonData['success'] == true &&
+        jsonData['reservas_historial'] != null &&
+        jsonData['reservas_historial']['data'] is List) {
+
       return List<Map<String, dynamic>>.from(
-        jsonData['reservas_aceptadas']['data'],
+        jsonData['reservas_historial']['data'],
       );
+
     } else {
       return [];
     }

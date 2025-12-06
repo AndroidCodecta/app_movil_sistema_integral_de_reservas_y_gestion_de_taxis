@@ -7,7 +7,7 @@ class SolicitudService {
 
   static Future<Map<String, dynamic>> responderSolicitud({
     required int solicitudChoferId,
-    required int estado, // 0 = declinar, 1 = aceptar
+    required int estado,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString("auth_token");
@@ -55,7 +55,7 @@ class SolicitudService {
   static Future<List<dynamic>> listarSolicitudes() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString("auth_token");
-    final idUser = prefs.getInt("user_id"); // Recuperamos el ID del usuario
+    final idUser = prefs.getInt("user_id");
 
     if (token == null || idUser == null) {
       throw Exception("Faltan datos de sesión (token o user_id)");
@@ -63,7 +63,6 @@ class SolicitudService {
 
     final url = Uri.parse("$_baseUrl/chofer/reservas_solicitudes");
 
-    // CAMBIO IMPORTANTE: Ahora es POST y enviamos el body
     final response = await http.post(
       url,
       headers: {
@@ -71,21 +70,18 @@ class SolicitudService {
         "Content-Type": "application/json",
       },
       body: jsonEncode({
-        "id_user": idUser, // Enviamos el ID como pide tu API
+        "id_user": idUser,
       }),
     );
 
     if (response.statusCode == 200) {
       final responseBody = jsonDecode(response.body);
 
-      // CAMBIO DE ESTRUCTURA:
-      // Tu API devuelve: { "success": true, "reservas_solicitudes": { "data": [...] } }
       if (responseBody['success'] == true &&
           responseBody['reservas_solicitudes'] != null) {
-        // Entramos a 'reservas_solicitudes' y luego a 'data'
         return responseBody['reservas_solicitudes']['data'] ?? [];
       } else {
-        return []; // Si no hay éxito o datos, retornamos lista vacía
+        return [];
       }
     } else {
       throw Exception("Error ${response.statusCode}: ${response.body}");
