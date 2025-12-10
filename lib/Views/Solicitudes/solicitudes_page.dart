@@ -265,7 +265,7 @@ class _SolicitudCard extends StatelessWidget {
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             const SizedBox(height: 6),
-            Text('Fecha: $fecha  •  Hora: $hora'),
+            // Text('Fecha: $fecha  •  Hora: $hora'),
             const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -275,7 +275,7 @@ class _SolicitudCard extends StatelessWidget {
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 Text(
-                  'S/ $precio',
+                  '$precio',
                   style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 18,
@@ -289,7 +289,7 @@ class _SolicitudCard extends StatelessWidget {
                 const Icon(Icons.timer, size: 16, color: Colors.grey),
                 const SizedBox(width: 4),
                 const Text(
-                  'Espera: ',
+                  'Fecha y hora: ',
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
                 Text(espera),

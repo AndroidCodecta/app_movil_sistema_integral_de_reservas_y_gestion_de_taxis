@@ -1,20 +1,20 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-// import '../../utils/viajes_service.dart'; // API COMENTADA
+import '../widgets/bottom_navigation.dart';
 import '../widgets/header.dart';
 
 enum TripStatus {
   EN_CAMINO,           // 1. Chofer va en camino
-  EN_PUNTO_ENCUENTRO,  // 2. Llegó, corre espera
-  EN_VIAJE,            // 3. Inició viaje, corre viaje
-  DESTINO_LLEGADO,     // 4. Llegó, mensaje tiempo enviado
+  EN_PUNTO_ENCUENTRO,  // 2. Llegó
+  EN_VIAJE,            // 3. Inició viaje
+  DESTINO_LLEGADO,     // 4. Llegó al destino
   PAGO_COMPLETADO      // 5. Fin
 }
 
 class TripEvent {
   final TripStatus status;
   final String description;
-  DateTime? timestamp;
+  DateTime? timestamp; // Aquí se guardará la hora del reloj
   DateTime? expectedTime;
 
   TripEvent(this.status, this.description, {this.timestamp, this.expectedTime});
@@ -24,19 +24,29 @@ class MapsScreen extends StatefulWidget {
   final bool viajeIniciado;
   final int? reservaId;
   final DateTime? horaEsperadaRecogidaReal;
+  final String? montoViaje;
+  final String? tipoPago;
 
-  const MapsScreen({super.key, this.viajeIniciado = false, this.reservaId, this.horaEsperadaRecogidaReal});
+  const MapsScreen({
+    super.key,
+    this.viajeIniciado = false,
+    this.reservaId,
+    this.horaEsperadaRecogidaReal,
+    this.montoViaje,
+    this.tipoPago,
+  });
 
   @override
   State<MapsScreen> createState() => _MapsScreenState();
 }
 
 class _MapsScreenState extends State<MapsScreen> {
-  final String _montoViaje = "S/. 219.89";
+  late String _montoViaje;
+  late String _tipoPago;
   TripStatus _currentStatus = TripStatus.EN_CAMINO;
   late List<TripEvent> _tripTimeline;
 
-  // Cronómetros internos (lógica)
+  // Cronómetros
   final Stopwatch _waitStopwatch = Stopwatch();
   final Stopwatch _travelStopwatch = Stopwatch();
   Timer? _timer;
@@ -44,27 +54,31 @@ class _MapsScreenState extends State<MapsScreen> {
   Duration _waitDuration = Duration.zero;
   Duration _travelDuration = Duration.zero;
 
-  // Simulación de hora esperada
+  // Simulación para lógica de semáforo (puedes quitarlo si usas datos reales)
   late DateTime _simulatedExpectedTimeForTesting;
 
   @override
   void initState() {
     super.initState();
-    _simulatedExpectedTimeForTesting = DateTime.now().add(const Duration(minutes: 15));
+    _montoViaje = "S/. ${widget.montoViaje ?? '0.00'}";
+    _tipoPago = widget.tipoPago ?? "Efectivo";
+    _simulatedExpectedTimeForTesting =
+        DateTime.now().add(const Duration(minutes: 15));
 
     _tripTimeline = [
-      TripEvent(TripStatus.EN_CAMINO, 'El chofer está de camino al punto de encuentro'),
-      TripEvent(TripStatus.EN_PUNTO_ENCUENTRO, 'El chofer llegó al punto de encuentro', expectedTime: _simulatedExpectedTimeForTesting),
+      TripEvent(TripStatus.EN_CAMINO,
+          'El chofer está de camino al punto de encuentro'),
+      TripEvent(TripStatus.EN_PUNTO_ENCUENTRO,
+          'El chofer llegó al punto de encuentro',
+          expectedTime: _simulatedExpectedTimeForTesting),
       TripEvent(TripStatus.EN_VIAJE, 'El chofer comenzó el viaje'),
       TripEvent(TripStatus.DESTINO_LLEGADO, 'El chofer llegó al destino'),
     ];
 
-    // REQUERIMIENTO: "El primero esta con check porque desde otra vista iniciamos el viaje"
-    // Marcamos visualmente el paso 0 como completado con la hora actual
+    // 1. El primer estado toma la hora del reloj AHORA MISMO
     _tripTimeline[0].timestamp = DateTime.now();
 
     if (widget.viajeIniciado) {
-      // Si restauras estado, aquí iría esa lógica.
       _startTicker();
     }
   }
@@ -82,7 +96,8 @@ class _MapsScreenState extends State<MapsScreen> {
       if (mounted) {
         setState(() {
           if (_waitStopwatch.isRunning) _waitDuration = _waitStopwatch.elapsed;
-          if (_travelStopwatch.isRunning) _travelDuration = _travelStopwatch.elapsed;
+          if (_travelStopwatch.isRunning)
+            _travelDuration = _travelStopwatch.elapsed;
         });
       }
     });
@@ -97,7 +112,6 @@ class _MapsScreenState extends State<MapsScreen> {
   }
 
   Future<void> _advanceTripStatus() async {
-    // --- LÓGICA LOCAL DE CAMBIO DE ESTADO ---
     setState(() {
       final currentStatusIndex = _currentStatus.index;
       final nextStatusIndex = currentStatusIndex + 1;
@@ -106,29 +120,40 @@ class _MapsScreenState extends State<MapsScreen> {
         final nextStatus = TripStatus.values[nextStatusIndex];
         _currentStatus = nextStatus;
 
-        // Actualizar timestamp visual (ajustado -1 porque PAGO no está en timeline visual)
-        if (nextStatusIndex  < _tripTimeline.length && nextStatus != TripStatus.PAGO_COMPLETADO) {
-          _tripTimeline[nextStatusIndex ].timestamp = DateTime.now();
+        // Capturamos la hora exacta
+        for (var event in _tripTimeline) {
+          if (event.status == nextStatus) {
+            event.timestamp = DateTime.now();
+            break;
+          }
         }
 
         switch (nextStatus) {
           case TripStatus.EN_CAMINO:
             break;
           case TripStatus.EN_PUNTO_ENCUENTRO:
-          // Botón presionado: "Llegué al punto". Inicia espera.
             _startTicker();
             _waitStopwatch.start();
             break;
           case TripStatus.EN_VIAJE:
-          // Botón presionado: "Comenzar viaje". Para espera, inicia viaje.
             _waitStopwatch.stop();
             _travelStopwatch.start();
             break;
+
+        // --- AQUÍ ESTÁ EL CAMBIO IMPORTANTE ---
           case TripStatus.DESTINO_LLEGADO:
-          // Botón presionado: "Terminar viaje". Para todo.
             _travelStopwatch.stop();
             _timer?.cancel();
+
+            bool esPostPago = widget.tipoPago!.toLowerCase().contains("post pago");
+
+            if (!esPostPago) {
+              // Si NO es postpago, terminamos automático
+              _currentStatus = TripStatus.PAGO_COMPLETADO;
+            }
             break;
+        // -------------------------------------
+
           case TripStatus.PAGO_COMPLETADO:
             break;
         }
@@ -137,15 +162,22 @@ class _MapsScreenState extends State<MapsScreen> {
   }
 
   Future<void> _showConfirmationDialog() async {
-    if (_currentStatus == TripStatus.DESTINO_LLEGADO || _currentStatus == TripStatus.PAGO_COMPLETADO) return;
+    if (_currentStatus == TripStatus.DESTINO_LLEGADO ||
+        _currentStatus == TripStatus.PAGO_COMPLETADO) return;
 
-    // Títulos de botones según requerimiento
     String nextStepTitle = "";
     switch (_currentStatus) {
-      case TripStatus.EN_CAMINO: nextStepTitle = "Llegué al punto de encuentro"; break;
-      case TripStatus.EN_PUNTO_ENCUENTRO: nextStepTitle = "Comenzar Viaje"; break;
-      case TripStatus.EN_VIAJE: nextStepTitle = "Terminar Viaje"; break;
-      default: break;
+      case TripStatus.EN_CAMINO:
+        nextStepTitle = "Llegué al punto de encuentro";
+        break;
+      case TripStatus.EN_PUNTO_ENCUENTRO:
+        nextStepTitle = "Comenzar Viaje";
+        break;
+      case TripStatus.EN_VIAJE:
+        nextStepTitle = "Terminar Viaje";
+        break;
+      default:
+        break;
     }
 
     return showDialog<void>(
@@ -164,7 +196,7 @@ class _MapsScreenState extends State<MapsScreen> {
               child: const Text('Confirmar'),
               onPressed: () {
                 Navigator.of(context).pop();
-                _advanceTripStatus();
+                _advanceTripStatus(); // Aquí se dispara la captura de hora
               },
             ),
           ],
@@ -180,6 +212,7 @@ class _MapsScreenState extends State<MapsScreen> {
       body: Column(
         children: [
           const LogoHeader(titulo: 'Viaje en Curso', estiloLogin: false),
+
           if (widget.viajeIniciado)
             Expanded(
               child: SingleChildScrollView(
@@ -187,24 +220,20 @@ class _MapsScreenState extends State<MapsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _buildStatusCard(),
-                    const SizedBox(height: 20),
-
-                    // REQUERIMIENTO: "Los contadores deben ser uno, cambia de color y texto"
                     if (_currentStatus != TripStatus.PAGO_COMPLETADO)
                       _buildDynamicTimer(),
 
                     const SizedBox(height: 30),
 
-                    // Botones de acción
-                    if (_currentStatus != TripStatus.DESTINO_LLEGADO && _currentStatus != TripStatus.PAGO_COMPLETADO)
+                    if (_currentStatus != TripStatus.DESTINO_LLEGADO &&
+                        _currentStatus != TripStatus.PAGO_COMPLETADO)
                       _buildSingleActionButton(),
 
                     const SizedBox(height: 30),
                     _buildTimeline(),
 
-                    // Sección Pago aparece al final
-                    if (_currentStatus == TripStatus.DESTINO_LLEGADO || _currentStatus == TripStatus.PAGO_COMPLETADO)
+                    if (_currentStatus == TripStatus.DESTINO_LLEGADO ||
+                        _currentStatus == TripStatus.PAGO_COMPLETADO)
                       _buildPaymentSection(),
 
                     const SizedBox(height: 20),
@@ -214,7 +243,8 @@ class _MapsScreenState extends State<MapsScreen> {
             )
           else
             const Expanded(
-              child: Center(child: Text('Cargando...', style: TextStyle(fontSize: 18))),
+              child: Center(child: Text('Aún no has iniciado un viaje',
+                  style: TextStyle(fontSize: 18))),
             ),
         ],
       ),
@@ -223,59 +253,6 @@ class _MapsScreenState extends State<MapsScreen> {
 
   // --- WIDGETS ---
 
-  Widget _buildStatusCard() {
-    String statusText = '';
-    Color statusColor = Colors.grey;
-
-    switch (_currentStatus) {
-      case TripStatus.EN_CAMINO:
-        statusText = 'En camino al punto de encuentro';
-        statusColor = Colors.blue.shade800;
-        break;
-      case TripStatus.EN_PUNTO_ENCUENTRO:
-        statusText = 'Esperando al pasajero';
-        statusColor = Colors.orange.shade800;
-        break;
-      case TripStatus.EN_VIAJE:
-        statusText = 'En ruta hacia el destino';
-        statusColor = Colors.green.shade800;
-        break;
-      case TripStatus.DESTINO_LLEGADO:
-        statusText = 'Llegada al destino confirmada';
-        statusColor = Colors.purple.shade800;
-        break;
-      case TripStatus.PAGO_COMPLETADO:
-        statusText = 'Viaje Finalizado';
-        statusColor = Colors.grey.shade800;
-        break;
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(color: statusColor.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5)),
-        ],
-        border: Border.all(color: statusColor.withOpacity(0.5), width: 2),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.info_outline, color: statusColor),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              statusText,
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: statusColor),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // REQUERIMIENTO: UN SOLO CONTADOR DINÁMICO
   Widget _buildDynamicTimer() {
     String label = "Tiempo";
     String timeValue = "00:00:00";
@@ -285,28 +262,24 @@ class _MapsScreenState extends State<MapsScreen> {
 
     switch (_currentStatus) {
       case TripStatus.EN_CAMINO:
-      // Paso 1 no cuenta
         label = "En Camino";
         timeValue = "--:--:--";
         bgColor = Colors.blue.shade50;
         fgColor = Colors.blue.shade800;
         break;
       case TripStatus.EN_PUNTO_ENCUENTRO:
-      // Paso 2 corre tiempo de espera
         label = "Tiempo de Espera";
         timeValue = _formatDuration(_waitDuration);
         bgColor = Colors.orange.shade100;
         fgColor = Colors.orange.shade900;
         break;
       case TripStatus.EN_VIAJE:
-      // Paso 3 cuenta tiempo de viaje
         label = "Tiempo de Viaje";
         timeValue = _formatDuration(_travelDuration);
         bgColor = Colors.green.shade100;
         fgColor = Colors.green.shade900;
         break;
       case TripStatus.DESTINO_LLEGADO:
-      // Paso 4 Mensaje
         isMessageMode = true;
         label = "Tiempo enviado, revise el método de pago";
         bgColor = Colors.purple.shade50;
@@ -328,13 +301,13 @@ class _MapsScreenState extends State<MapsScreen> {
           child: Text(
             label,
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: fgColor),
+            style: TextStyle(
+                fontSize: 16, fontWeight: FontWeight.bold, color: fgColor),
           ),
         ),
       );
     }
 
-    // Diseño Normal del Contador
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
       decoration: BoxDecoration(
@@ -344,11 +317,15 @@ class _MapsScreenState extends State<MapsScreen> {
       ),
       child: Column(
         children: [
-          Text(label.toUpperCase(), style: TextStyle(fontWeight: FontWeight.w600, color: fgColor, letterSpacing: 1.2)),
+          Text(label.toUpperCase(), style: TextStyle(
+              fontWeight: FontWeight.w600, color: fgColor, letterSpacing: 1.2)),
           const SizedBox(height: 5),
           Text(
             timeValue,
-            style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: fgColor, fontFamily: 'RobotoMono'),
+            style: TextStyle(fontSize: 32,
+                fontWeight: FontWeight.bold,
+                color: fgColor,
+                fontFamily: 'RobotoMono'),
           ),
         ],
       ),
@@ -360,7 +337,6 @@ class _MapsScreenState extends State<MapsScreen> {
     Color buttonColor = Colors.blue;
     VoidCallback? onPressedAction = _showConfirmationDialog;
 
-    // REQUERIMIENTO: Textos de botones específicos
     switch (_currentStatus) {
       case TripStatus.EN_CAMINO:
         buttonText = 'Llegué al punto de encuentro';
@@ -388,7 +364,8 @@ class _MapsScreenState extends State<MapsScreen> {
         elevation: 3,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
-      child: Text(buttonText, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+      child: Text(buttonText,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
     );
   }
 
@@ -403,9 +380,13 @@ class _MapsScreenState extends State<MapsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('HISTORIAL:', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey)),
+          const Text('HISTORIAL:', style: TextStyle(
+              fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey)),
           const SizedBox(height: 15),
-          ..._tripTimeline.asMap().entries.map((entry) {
+          ..._tripTimeline
+              .asMap()
+              .entries
+              .map((entry) {
             int index = entry.key;
             TripEvent event = entry.value;
             bool isCompleted = event.timestamp != null;
@@ -425,7 +406,8 @@ class _MapsScreenState extends State<MapsScreen> {
   }
 
   Widget _buildTimelineItem(TripEvent event, bool isCompleted, int index) {
-    Color iconColor = isCompleted ? Colors.green.shade600 : Colors.grey.shade300;
+    Color iconColor = isCompleted ? Colors.green.shade600 : Colors.grey
+        .shade300;
     Color textColor = isCompleted ? Colors.black87 : Colors.grey.shade500;
 
     return Row(
@@ -433,7 +415,9 @@ class _MapsScreenState extends State<MapsScreen> {
       children: [
         Column(
           children: [
-            Icon(isCompleted ? Icons.check_circle : Icons.radio_button_unchecked, color: iconColor, size: 22),
+            Icon(
+                isCompleted ? Icons.check_circle : Icons.radio_button_unchecked,
+                color: iconColor, size: 22),
           ],
         ),
         const SizedBox(width: 12),
@@ -443,7 +427,9 @@ class _MapsScreenState extends State<MapsScreen> {
             children: [
               Text(
                 event.description,
-                style: TextStyle(fontWeight: isCompleted ? FontWeight.bold : FontWeight.normal, color: textColor, fontSize: 15),
+                style: TextStyle(
+                    fontWeight: isCompleted ? FontWeight.bold : FontWeight
+                        .normal, color: textColor, fontSize: 15),
               ),
               const SizedBox(height: 4),
               _buildColoredTimestamp(event, isCompleted),
@@ -457,12 +443,15 @@ class _MapsScreenState extends State<MapsScreen> {
   Widget _buildColoredTimestamp(TripEvent event, bool isCompleted) {
     if (!isCompleted) return const SizedBox.shrink();
 
-    String formattedTime = event.timestamp!.toLocal().toString().substring(11, 16);
+    // FORMATEAR HORA PARA MOSTRAR LA DEL RELOJ
+    String formattedTime = event.timestamp!.toLocal().toString().substring(
+        11, 16);
+
     Color timeColor = Colors.grey.shade600;
     String statusSuffix = "";
 
-    // Semáforo solo para el paso 2 (Llegada al punto)
-    if (event.status == TripStatus.EN_PUNTO_ENCUENTRO && event.expectedTime != null && event.timestamp != null) {
+    if (event.status == TripStatus.EN_PUNTO_ENCUENTRO &&
+        event.expectedTime != null && event.timestamp != null) {
       final diff = event.timestamp!.difference(event.expectedTime!).inMinutes;
       if (diff < -5) {
         timeColor = Colors.green[700]!;
@@ -478,10 +467,10 @@ class _MapsScreenState extends State<MapsScreen> {
 
     return Text(
       'Hora: $formattedTime$statusSuffix',
-      style: TextStyle(fontSize: 12, color: timeColor, fontWeight: FontWeight.w600),
+      style: TextStyle(
+          fontSize: 12, color: timeColor, fontWeight: FontWeight.w600),
     );
   }
-
 
   Widget _buildTimelineConnector(bool isCompleted) {
     return Container(
@@ -495,7 +484,96 @@ class _MapsScreenState extends State<MapsScreen> {
 
   Widget _buildPaymentSection() {
     bool isPaid = _currentStatus == TripStatus.PAGO_COMPLETADO;
+    // CORRECCIÓN: Usamos "post" en minúscula para que funcione con toLowerCase()
+    bool esPostPago = widget.tipoPago!.toLowerCase().contains("post");
 
+    // ---------------------------------------------------------
+    // CASO 1: CUALQUIER VIAJE TERMINADO (Ya cobrado)
+    // ---------------------------------------------------------
+    if (isPaid) {
+      // AQUÍ LA LÓGICA DEL TEXTO QUE PEDISTE:
+      String textoFinal = esPostPago
+          ? "Viaje Postpago terminado"
+          : "Viaje por convenio terminado";
+      return Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade300),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.grey.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4)),
+          ],
+        ),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            // Mensaje simple de finalización
+            Container(
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.check_circle_outline, color: Colors.blue.shade800),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text(
+                      textoFinal, // <--- AQUÍ ESTABA EL ERROR (antes decía el texto fijo)
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue.shade900
+                    ),
+                  ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Botón Único de Salida
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const MainLayoutScreen(),
+                    ),
+                        (route) => false,
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.black,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                child: const Text("Volver al inicio",
+                    style: TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // ---------------------------------------------------------
+    // CASO 2: PAGO MANUAL (Postpago) - Muestra detalles y cobro
+    // ---------------------------------------------------------
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -521,37 +599,44 @@ class _MapsScreenState extends State<MapsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(children: [
-                const Icon(Icons.payments_outlined, color: Colors.green, size: 28),
-                const SizedBox(width: 10),
-                const Text("Efectivo",
-                    style:
-                    TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-
-                // Línea separadora vertical
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 15),
-                  height: 25,
-                  width: 1.5,
-                  color: Colors.grey.shade300,
-                ),
-
-                // MONTO
-                Text(
-                  _montoViaje,
-                  style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.blue.shade900),
-                )
-              ]),
-
-              // LADO DERECHO: Check si está pagado
+              Expanded(
+                child: Row(children: [
+                  const Icon(
+                      Icons.payments_outlined, color: Colors.green, size: 28),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _tipoPago,
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 10),
+                    height: 25,
+                    width: 1.5,
+                    color: Colors.grey.shade300,
+                  ),
+                  Text(
+                    _montoViaje,
+                    style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.blue.shade900),
+                  )
+                ]),
+              ),
               if (isPaid)
-                const Icon(Icons.check_circle, color: Colors.green, size: 28),
+                const Padding(
+                  padding: EdgeInsets.only(left: 8.0),
+                  child: Icon(
+                      Icons.check_circle, color: Colors.green, size: 28),
+                ),
             ],
           ),
           const SizedBox(height: 20),
+
           if (!isPaid)
             SizedBox(
               width: double.infinity,
@@ -566,7 +651,7 @@ class _MapsScreenState extends State<MapsScreen> {
                     );
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black87, // Color oscuro elegante
+                    backgroundColor: Colors.black87,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 15),
                     shape: RoundedRectangleBorder(
@@ -577,18 +662,46 @@ class _MapsScreenState extends State<MapsScreen> {
                           fontSize: 16, fontWeight: FontWeight.bold))),
             )
           else
-            Container(
-                padding: const EdgeInsets.all(12),
-                width: double.infinity,
-                decoration: BoxDecoration(
-                    color: Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.green.shade200)),
-                child: Center(
-                    child: Text("Cobro Realizado Correctamente",
-                        style: TextStyle(
-                            color: Colors.green.shade800,
-                            fontWeight: FontWeight.bold))))
+            Column(
+              children: [
+                Container(
+                    margin: const EdgeInsets.only(bottom: 20),
+                    padding: const EdgeInsets.all(12),
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.green.shade200)),
+                    child: Center(
+                        child: Text("Cobro Realizado Correctamente",
+                            style: TextStyle(
+                                color: Colors.green.shade800,
+                                fontWeight: FontWeight.bold)))),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pushAndRemoveUntil(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const MainLayoutScreen(),
+                          ),
+                              (route) => false,
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: const Text("Volver al inicio",
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold))),
+                ),
+              ],
+            )
         ],
       ),
     );

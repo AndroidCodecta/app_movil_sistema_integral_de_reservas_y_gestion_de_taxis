@@ -300,12 +300,16 @@ class _ReservaDetalleCompletoScreenState
   Widget _buildActionButton(BuildContext context) {
     return ElevatedButton.icon(
       onPressed: () {
+        final monto = _reservaDetalle?.detallePago?.monto;
+        final tipo = _reservaDetalle?.detallePago?.tipoPago;
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => MapsScreen(
               viajeIniciado: true,
               reservaId: _reservaDetalle?.id,
+              montoViaje: monto,
+              tipoPago: tipo,
             ),
           ),
         );

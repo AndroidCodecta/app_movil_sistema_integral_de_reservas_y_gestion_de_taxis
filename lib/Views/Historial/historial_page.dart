@@ -90,8 +90,7 @@ class _HistorialPageState extends State<HistorialPage> {
 
     try {
       final List<Map<String, dynamic>> rawData =
-      await ReservasService.fetchReservasList();
-
+      await ReservasService.fetchReservasHistorial();
       final List<ReservaHistorial> historial = rawData
           .map((map) => ReservaHistorial.fromMap(map))
           .toList();

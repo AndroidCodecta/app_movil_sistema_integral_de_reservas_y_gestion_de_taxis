@@ -1,38 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="AndroidLayouts">
-    <shared>
-      <config />
-    </shared>
-  </component>
   <component name="AutoImportSettings">
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="965ace54-6646-4649-9de4-8280f33cd901" name="Changes" comment="Se agregaron conexiones api ( Se necesitan ordenar)">
-      <change afterPath="$PROJECT_DIR$/lib/utils/viajes_service.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/libraries/Dart_Packages.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/libraries/Dart_Packages.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/libraries/Flutter_Plugins.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/libraries/Flutter_Plugins.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+    <list default="true" id="37451812-81db-4d69-9485-01ef193e4c3c" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_1_12_2025_09_04_[Changes]/shelved.patch" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_1_12_2025_09_04__Changes_.xml" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/Views/Chats/chat_page.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/Views/Chats/chat_page.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/Views/Chats/chat_user_list_page.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/Views/Chats/chat_user_list_page.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/Views/Historial/historial_detalle.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/Views/Historial/historial_detalle.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app_movil_sistema_integral_de_reservas_y_gestion_de_taxis.iml" beforeDir="false" afterPath="$PROJECT_DIR$/app_movil_sistema_integral_de_reservas_y_gestion_de_taxis.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/Views/Historial/historial_page.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/Views/Historial/historial_page.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/Views/Inicio/inicio_page.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/Views/Inicio/inicio_page.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/Views/Login/login_page.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/Views/Login/login_page.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/Views/Maps/maps_page.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/Views/Maps/maps_page.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/Views/Profile/profile_page.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/Views/Profile/profile_page.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/Views/Reservas/reservas_detalle.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/Views/Reservas/reservas_detalle.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/Views/Reservas/reservas_page.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/Views/Reservas/reservas_page.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/Views/Solicitudes/solicitudes_page.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/Views/Solicitudes/solicitudes_page.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/Views/Viaje/viaje_page.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/Views/Viaje/viaje_page.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/Views/widgets/bottom_navigation.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/Views/widgets/bottom_navigation.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/main.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/main.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/utils/reservas_service.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/utils/reservas_service.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/utils/session_manager.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/utils/session_manager.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/utils/solicitud_service.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/utils/solicitud_service.dart" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -55,23 +35,13 @@
       </file>
     </leaf>
   </component>
-  <component name="FileTemplateManagerImpl">
-    <option name="RECENT_TEMPLATES">
-      <list>
-        <option value="Class" />
-        <option value="valueResourceFile" />
-        <option value="Dart File" />
-      </list>
-    </option>
-  </component>
   <component name="Git.Settings">
     <option name="RECENT_BRANCH_BY_REPOSITORY">
       <map>
-        <entry key="$PROJECT_DIR$" value="develop" />
+        <entry key="$PROJECT_DIR$" value="main" />
       </map>
     </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
-    <option name="UPDATE_TYPE" value="REBASE" />
   </component>
   <component name="GitHubPullRequestSearchHistory">{
   &quot;lastFilter&quot;: {
@@ -85,19 +55,10 @@
     &quot;accountId&quot;: &quot;d3c6b854-f800-4eaa-bcaf-cb14b81e6d34&quot;
   }
 }</component>
-  <component name="HighlightingSettingsPerFile">
-    <setting file="file://$PROJECT_DIR$/lib/utils/solicitud_service.dart" root0="SKIP_HIGHLIGHTING" />
-  </component>
-  <component name="ProblemsViewState">
-    <option name="selectedTabId" value="CurrentFile" />
-  </component>
   <component name="ProjectColorInfo">{
-  &quot;associatedIndex&quot;: 4
+  &quot;associatedIndex&quot;: 1
 }</component>
-  <component name="ProjectId" id="33Vsae9UkLNFI19VFfuGFabuH9k" />
-  <component name="ProjectLevelVcsManager">
-    <ConfirmationsSetting value="2" id="Add" />
-  </component>
+  <component name="ProjectId" id="36XmB5X8wnO9056ZZSWWhCBtmXg" />
   <component name="ProjectView">
     <navigator currentView="ProjectPane" proportions="" version="1" />
     <panes>
@@ -109,49 +70,32 @@
   <component name="ProjectViewState">
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "Flutter.main.dart.executor": "Run",
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.cidr.known.project.marker": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.readMode.enableVisualFormatting": "true",
-    "cf.first.check.clang-format": "false",
-    "cidr.known.project.marker": "true",
-    "com.google.services.firebase.aqiPopupShown": "true",
-    "dart.analysis.tool.window.visible": "false",
-    "git-widget-placeholder": "feature/Map-flow",
-    "ignore.virus.scanning.warn.message": "true",
-    "io.flutter.reload.alreadyRun": "true",
-    "last_opened_file_path": "C:/Users/samir/OneDrive/Escritorio/app_movil_sistema_integral_de_reservas_y_gestion_de_taxis",
-    "settings.editor.selected.configurable": "com.android.studio.ml.bot.mainConfigurable",
-    "show.migrate.to.gradle.popup": "false"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Flutter.main.dart.executor&quot;: &quot;Run&quot;,
+    &quot;Notification.DisplayName-DoNotAsk-Flutter Messages&quot;: &quot;Flutter Messages&quot;,
+    &quot;Notification.DoNotAsk-Flutter Messages&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.readMode.enableVisualFormatting&quot;: &quot;true&quot;,
+    &quot;cf.first.check.clang-format&quot;: &quot;false&quot;,
+    &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;com.google.services.firebase.aqiPopupShown&quot;: &quot;true&quot;,
+    &quot;dart.analysis.tool.window.visible&quot;: &quot;false&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;feature/Map-flow&quot;,
+    &quot;io.flutter.reload.alreadyRun&quot;: &quot;true&quot;,
+    &quot;show.migrate.to.gradle.popup&quot;: &quot;false&quot;
   }
-}]]></component>
-  <component name="RecentsManager">
-    <key name="MoveFile.RECENT_KEYS">
-      <recent name="C:\Users\samir\OneDrive\Escritorio\app_movil_sistema_integral_de_reservas_y_gestion_de_taxis\android\app\src\main\res\xml" />
-      <recent name="C:\Users\samir\OneDrive\Escritorio\app_movil_sistema_integral_de_reservas_y_gestion_de_taxis\android\app\src\main\res" />
-    </key>
-  </component>
+}</component>
   <component name="TaskManager">
     <task active="true" id="Default" summary="Default task">
-      <changelist id="965ace54-6646-4649-9de4-8280f33cd901" name="Changes" comment="" />
-      <created>1759413639179</created>
+      <changelist id="37451812-81db-4d69-9485-01ef193e4c3c" name="Changes" comment="" />
+      <created>1765161153778</created>
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
-      <updated>1759413639179</updated>
+      <updated>1765161153778</updated>
     </task>
-    <task id="LOCAL-00001" summary="Cambios en vistas">
-      <option name="closed" value="true" />
-      <created>1761059389105</created>
-      <option name="number" value="00001" />
-      <option name="presentableId" value="LOCAL-00001" />
-      <option name="project" value="LOCAL" />
-      <updated>1761059389105</updated>
-    </task>
-    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="ToolWindowManager">
@@ -159,20 +103,5 @@
     <layout>
       <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="0" side_tool="false" content_ui="combo" />
     </layout>
-  </component>
-  <component name="Vcs.Log.Tabs.Properties">
-    <option name="TAB_STATES">
-      <map>
-        <entry key="MAIN">
-          <value>
-            <State />
-          </value>
-        </entry>
-      </map>
-    </option>
-  </component>
-  <component name="VcsManagerConfiguration">
-    <MESSAGE value="Cambios en vistas" />
-    <option name="LAST_COMMIT_MESSAGE" value="Cambios en vistas" />
   </component>
 </project>
