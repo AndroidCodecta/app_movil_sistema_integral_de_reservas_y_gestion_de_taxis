@@ -257,6 +257,11 @@ class HistorialCard extends StatelessWidget {
                     'Dirección de encuentro:',
                     reserva.direccionEncuentro,
                   ),
+                  const SizedBox(height: 8),
+                  _buildInfoRow(
+                    'Dirección de encuentro:',
+                    reserva.dDestino,
+                  ),
                   const SizedBox(height: 12),
                   Align(
                     alignment: Alignment.centerRight,
