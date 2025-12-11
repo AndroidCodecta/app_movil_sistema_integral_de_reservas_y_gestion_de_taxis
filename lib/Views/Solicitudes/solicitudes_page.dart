@@ -173,8 +173,10 @@ class _SolicitudesPageState extends State<SolicitudesPage> {
 
                     final espera =
                         reserva['tiempo_espera']?.toString() ?? '---';
-                    final direccion =
+                    final origen =
                         reserva['d_encuentro']?.toString() ?? '---';
+                    final destino =
+                        reserva['d_destino']?.toString() ?? '---';
                     final precio =
                         reserva['precio']?.toString() ?? '---';
 
@@ -183,7 +185,8 @@ class _SolicitudesPageState extends State<SolicitudesPage> {
                       fecha: fecha,
                       hora: hora,
                       espera: espera,
-                      direccion: direccion,
+                      origen: origen,
+                      destino: destino,
                       precio: precio,
                       clienteTipo: clienteTipo,
                       onAceptar: () =>
@@ -207,7 +210,8 @@ class _SolicitudCard extends StatelessWidget {
   final String fecha;
   final String hora;
   final String espera;
-  final String direccion;
+  final String origen;
+  final String destino;
   final String precio;
   final String clienteTipo;
   final VoidCallback onAceptar;
@@ -218,7 +222,8 @@ class _SolicitudCard extends StatelessWidget {
     required this.fecha,
     required this.hora,
     required this.espera,
-    required this.direccion,
+    required this.origen,
+    required this.destino,
     required this.precio,
     required this.clienteTipo,
     required this.onAceptar,
@@ -301,7 +306,15 @@ class _SolicitudCard extends StatelessWidget {
               children: [
                 const Icon(Icons.location_on, size: 16, color: Colors.grey),
                 const SizedBox(width: 4),
-                Expanded(child: Text('Dirección: $direccion')),
+                Expanded(child: Text('Origen: $origen')),
+              ],
+            ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.location_on, size: 16, color: Colors.grey),
+                const SizedBox(width: 4),
+                Expanded(child: Text('Destino: $destino')),
               ],
             ),
             const SizedBox(height: 20),
