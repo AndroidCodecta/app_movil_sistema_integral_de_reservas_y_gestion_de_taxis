@@ -6,7 +6,7 @@ import '../Inicio/inicio_page.dart';
 import '../widgets/bottom_navigation.dart';
 import '/utils/session_manager.dart';
 import '../widgets/header.dart';
-import 'forgot_password_page.dart';
+// import 'forgot_password_page.dart'; // COMENTADO
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -120,12 +120,13 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  void _forgotPassword() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => ForgotPasswordPage()),
-    );
-  }
+  // FUNCIÓN COMENTADA - Ya no navega a ForgotPasswordPage
+  // void _forgotPassword() {
+  //   Navigator.push(
+  //     context,
+  //     MaterialPageRoute(builder: (context) => ForgotPasswordPage()),
+  //   );
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -247,19 +248,20 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
                       const SizedBox(height: 24),
-                      Center(
-                        child: TextButton(
-                          onPressed: _forgotPassword,
-                          child: const Text(
-                            '¡¿Olvidaste tu cuenta?!',
-                            style: TextStyle(
-                              color: Colors.black,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ),
+                      // ✅ BOTÓN COMENTADO - Ya no hace nada al presionar
+                      // Center(
+                      //   child: TextButton(
+                      //     onPressed: _forgotPassword,
+                      //     child: const Text(
+                      //       '¡¿Olvidaste tu cuenta?!',
+                      //       style: TextStyle(
+                      //         color: Colors.black,
+                      //         fontSize: 16,
+                      //         fontWeight: FontWeight.w500,
+                      //       ),
+                      //     ),
+                      //   ),
+                      // ),
                     ],
                   ),
                 ),
