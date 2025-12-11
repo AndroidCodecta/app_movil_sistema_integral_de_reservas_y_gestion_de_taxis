@@ -149,7 +149,9 @@ class ReservaDetalleCard extends StatelessWidget {
         ? fechaHora.split(" ")[1].substring(0, 5)
         : "---";
 
-    final direccion = reservaData["d_encuentro"] ?? "Sin dirección";
+    final encuentro = reservaData["d_encuentro"] ?? "Sin dirección";
+    final destino = reservaData["d_destino"] ?? "Sin dirección";
+
 
     if (id == 0) return const SizedBox.shrink();
 
@@ -200,7 +202,9 @@ class ReservaDetalleCard extends StatelessWidget {
                   const SizedBox(height: 8),
                   _buildInfoRow('Fecha y Hora:', '$fecha - $hora'),
                   const SizedBox(height: 8),
-                  _buildInfoRow('Dirección de encuentro:', direccion),
+                  _buildInfoRow('Dirección de encuentro:', encuentro),
+                  const SizedBox(height: 8),
+                  _buildInfoRow('Dirección de destino:', destino),
                   const SizedBox(height: 12),
                   Align(
                     alignment: Alignment.centerRight,
