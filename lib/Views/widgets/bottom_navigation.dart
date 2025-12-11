@@ -5,33 +5,61 @@ import '../Reservas/reservas_page.dart';
 import '../Solicitudes/solicitudes_page.dart';
 
 class MainLayoutScreen extends StatefulWidget {
-  const MainLayoutScreen({super.key});
+  // Permitir inicializar con un índice específico
+  final int initialIndex;
+  final bool? viajeIniciado;
+  final int? reservaId;
+  final DateTime? horaEsperadaRecogidaReal;
+  final String? montoViaje;
+  final String? tipoPago;
+
+  const MainLayoutScreen({
+    super.key,
+    this.initialIndex = 0,
+    this.viajeIniciado,
+    this.reservaId,
+    this.horaEsperadaRecogidaReal,
+    this.montoViaje,
+    this.tipoPago,
+  });
 
   @override
   State<MainLayoutScreen> createState() => _MainLayoutScreenState();
 }
 
 class _MainLayoutScreenState extends State<MainLayoutScreen> {
-  int _currentIndex = 0;
+  late int _currentIndex;
 
-  final List<Widget> _screens = [
-    // Index 0: Home
-    const HomeScreen(reservas: [],),
-
-    // Index 1: Reservas
-    const ReservasScreen(),
-
-    // Index ?: Chat (COMENTADO)
-    // const Center(child: Text("Chat Screen")),
-
-    const SolicitudesPage(),
-
-    // Index 3: Mapa
-    const MapsScreen(),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    // Inicializar con el índice recibido
+    _currentIndex = widget.initialIndex;
+  }
 
   @override
   Widget build(BuildContext context) {
+    // Crear lista de pantallas dinámicamente
+    final List<Widget> _screens = [
+      // Index 0: Home
+      const HomeScreen(reservas: []),
+
+      // Index 1: Reservas
+      const ReservasScreen(),
+
+      // Index 2: Solicitudes
+      const SolicitudesPage(),
+
+      // Index 3: Mapa - AHORA PUEDE RECIBIR PARÁMETROS
+      MapsScreen(
+        viajeIniciado: widget.viajeIniciado ?? false,
+        reservaId: widget.reservaId,
+        horaEsperadaRecogidaReal: widget.horaEsperadaRecogidaReal,
+        montoViaje: widget.montoViaje,
+        tipoPago: widget.tipoPago,
+      ),
+    ];
+
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
@@ -52,7 +80,7 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
           showUnselectedLabels: false,
           currentIndex: _currentIndex,
           onTap: (index) {
-            // Aquí ya no usamos Navigator, solo cambiamos el índice
+            // Solo cambiar de índice (mantiene el bottom nav visible)
             setState(() {
               _currentIndex = index;
             });
@@ -73,14 +101,6 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
                   : const Icon(Icons.notifications_none),
               label: 'Reservas',
             ),
-
-            // ITEM COMENTADO: CHAT
-            // BottomNavigationBarItem(
-            //   icon: _currentIndex == 2 // Cuidado con los índices si descomentas
-            //       ? const Icon(Icons.chat)
-            //       : const Icon(Icons.chat_outlined),
-            //   label: 'Chat',
-            // ),
 
             // ITEM 2: SOLICITUDES
             BottomNavigationBarItem(
