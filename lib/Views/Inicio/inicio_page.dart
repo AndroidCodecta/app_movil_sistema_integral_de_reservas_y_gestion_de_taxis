@@ -124,6 +124,7 @@ class ReservaCard extends StatelessWidget {
                         _buildInfoRow('Fecha:', reserva.fechaReserva),
                         _buildInfoRow('Hora:', reserva.horaRecogida),
                         _buildInfoRow('Encuentro:', reserva.direccionEncuentro),
+                        _buildInfoRow('Llegada:', reserva.direccionDestino),
                       ],
                     ),
                   ),
