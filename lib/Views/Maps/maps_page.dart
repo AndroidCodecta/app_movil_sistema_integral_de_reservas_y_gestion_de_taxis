@@ -14,7 +14,7 @@ enum TripStatus {
 class TripEvent {
   final TripStatus status;
   final String description;
-  DateTime? timestamp; // Aquí se guardará la hora del reloj
+  DateTime? timestamp;
   DateTime? expectedTime;
 
   TripEvent(this.status, this.description, {this.timestamp, this.expectedTime});
@@ -46,7 +46,6 @@ class _MapsScreenState extends State<MapsScreen> {
   TripStatus _currentStatus = TripStatus.EN_CAMINO;
   late List<TripEvent> _tripTimeline;
 
-  // Cronómetros
   final Stopwatch _waitStopwatch = Stopwatch();
   final Stopwatch _travelStopwatch = Stopwatch();
   Timer? _timer;
@@ -54,7 +53,6 @@ class _MapsScreenState extends State<MapsScreen> {
   Duration _waitDuration = Duration.zero;
   Duration _travelDuration = Duration.zero;
 
-  // Simulación para lógica de semáforo (puedes quitarlo si usas datos reales)
   late DateTime _simulatedExpectedTimeForTesting;
 
   @override
@@ -75,7 +73,6 @@ class _MapsScreenState extends State<MapsScreen> {
       TripEvent(TripStatus.DESTINO_LLEGADO, 'El chofer llegó al destino'),
     ];
 
-    // 1. El primer estado toma la hora del reloj AHORA MISMO
     _tripTimeline[0].timestamp = DateTime.now();
 
     if (widget.viajeIniciado) {
@@ -120,7 +117,6 @@ class _MapsScreenState extends State<MapsScreen> {
         final nextStatus = TripStatus.values[nextStatusIndex];
         _currentStatus = nextStatus;
 
-        // Capturamos la hora exacta
         for (var event in _tripTimeline) {
           if (event.status == nextStatus) {
             event.timestamp = DateTime.now();
@@ -139,8 +135,6 @@ class _MapsScreenState extends State<MapsScreen> {
             _waitStopwatch.stop();
             _travelStopwatch.start();
             break;
-
-        // --- AQUÍ ESTÁ EL CAMBIO IMPORTANTE ---
           case TripStatus.DESTINO_LLEGADO:
             _travelStopwatch.stop();
             _timer?.cancel();
@@ -148,12 +142,9 @@ class _MapsScreenState extends State<MapsScreen> {
             bool esPostPago = widget.tipoPago!.toLowerCase().contains("post pago");
 
             if (!esPostPago) {
-              // Si NO es postpago, terminamos automático
               _currentStatus = TripStatus.PAGO_COMPLETADO;
             }
             break;
-        // -------------------------------------
-
           case TripStatus.PAGO_COMPLETADO:
             break;
         }
@@ -196,7 +187,7 @@ class _MapsScreenState extends State<MapsScreen> {
               child: const Text('Confirmar'),
               onPressed: () {
                 Navigator.of(context).pop();
-                _advanceTripStatus(); // Aquí se dispara la captura de hora
+                _advanceTripStatus();
               },
             ),
           ],
@@ -207,9 +198,11 @@ class _MapsScreenState extends State<MapsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      body: Column(
+    // ✅ CORREGIDO: YA NO HAY Scaffold AQUÍ
+    // El Scaffold está en MainLayoutScreen, así que solo devolvemos el contenido
+    return Container(
+      color: Colors.grey[50],
+      child: Column(
         children: [
           const LogoHeader(titulo: 'Viaje en Curso', estiloLogin: false),
 
@@ -250,8 +243,6 @@ class _MapsScreenState extends State<MapsScreen> {
       ),
     );
   }
-
-  // --- WIDGETS ---
 
   Widget _buildDynamicTimer() {
     String label = "Tiempo";
@@ -443,7 +434,6 @@ class _MapsScreenState extends State<MapsScreen> {
   Widget _buildColoredTimestamp(TripEvent event, bool isCompleted) {
     if (!isCompleted) return const SizedBox.shrink();
 
-    // FORMATEAR HORA PARA MOSTRAR LA DEL RELOJ
     String formattedTime = event.timestamp!.toLocal().toString().substring(
         11, 16);
 
@@ -484,14 +474,9 @@ class _MapsScreenState extends State<MapsScreen> {
 
   Widget _buildPaymentSection() {
     bool isPaid = _currentStatus == TripStatus.PAGO_COMPLETADO;
-    // CORRECCIÓN: Usamos "post" en minúscula para que funcione con toLowerCase()
     bool esPostPago = widget.tipoPago!.toLowerCase().contains("post");
 
-    // ---------------------------------------------------------
-    // CASO 1: CUALQUIER VIAJE TERMINADO (Ya cobrado)
-    // ---------------------------------------------------------
     if (isPaid) {
-      // AQUÍ LA LÓGICA DEL TEXTO QUE PEDISTE:
       String textoFinal = esPostPago
           ? "Viaje Postpago terminado"
           : "Viaje por convenio terminado";
@@ -511,7 +496,6 @@ class _MapsScreenState extends State<MapsScreen> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // Mensaje simple de finalización
             Container(
               padding: const EdgeInsets.all(15),
               decoration: BoxDecoration(
@@ -526,14 +510,14 @@ class _MapsScreenState extends State<MapsScreen> {
                   const SizedBox(width: 10),
                   Flexible(
                     child: Text(
-                      textoFinal, // <--- AQUÍ ESTABA EL ERROR (antes decía el texto fijo)
+                      textoFinal,
                       textAlign: TextAlign.center,
                       style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                           color: Colors.blue.shade900
+                      ),
                     ),
-                  ),
                   ),
                 ],
               ),
@@ -541,7 +525,6 @@ class _MapsScreenState extends State<MapsScreen> {
 
             const SizedBox(height: 20),
 
-            // Botón Único de Salida
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -571,9 +554,6 @@ class _MapsScreenState extends State<MapsScreen> {
       );
     }
 
-    // ---------------------------------------------------------
-    // CASO 2: PAGO MANUAL (Postpago) - Muestra detalles y cobro
-    // ---------------------------------------------------------
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
