@@ -255,7 +255,7 @@ class _ReservaDetalleCompletoScreenState
                     children: [
                       _buildInfoRow('Tipo de Pago:', tipoPago.tipoPago),
                       _buildInfoRow('Monto:', 'S/ ${tipoPago.monto}'),
-                      _buildInfoRow('Método:', tipoPago.metodoPago),
+                      // _buildInfoRow('Método:', tipoPago.metodoPago),
                     ],
                   )
                 else
@@ -297,21 +297,39 @@ class _ReservaDetalleCompletoScreenState
     );
   }
 
+  // ✅ MÉTODO CORREGIDO - ESTE ES EL CAMBIO IMPORTANTE
   Widget _buildActionButton(BuildContext context) {
     return ElevatedButton.icon(
       onPressed: () {
         final monto = _reservaDetalle?.detallePago?.monto;
         final tipo = _reservaDetalle?.detallePago?.tipoPago;
-        Navigator.push(
+
+        // ❌ CÓDIGO ANTIGUO (comentado):
+        // Navigator.push(
+        //   context,
+        //   MaterialPageRoute(
+        //     builder: (context) => MapsScreen(
+        //       viajeIniciado: true,
+        //       reservaId: _reservaDetalle?.id,
+        //       montoViaje: monto,
+        //       tipoPago: tipo,
+        //     ),
+        //   ),
+        // );
+
+        // ✅ CÓDIGO NUEVO (mantiene el BottomNavigation visible):
+        Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
-            builder: (context) => MapsScreen(
+            builder: (context) => MainLayoutScreen(
+              initialIndex: 3,  // Índice 3 = MapsScreen
               viajeIniciado: true,
               reservaId: _reservaDetalle?.id,
               montoViaje: monto,
               tipoPago: tipo,
             ),
           ),
+              (route) => false,  // Elimina todas las rutas anteriores
         );
       },
       icon: const Icon(Icons.navigation_sharp, size: 28),
