@@ -3,6 +3,29 @@ import '/utils/reservas_service.dart';
 import '../widgets/header.dart';
 import '../widgets/bottom_navigation.dart';
 
+class ReservasDetalleTipoPago {
+  final String tipoPago;
+  final String monto;
+  final String metodoPago;
+
+  ReservasDetalleTipoPago({
+    required this.tipoPago,
+    required this.monto,
+    required this.metodoPago,
+  });
+
+  factory ReservasDetalleTipoPago.fromJson(Map<String, dynamic> data) {
+    final pagoAdicional = (data["pago_adicional"] is Map)
+        ? data["pago_adicional"] as Map<String, dynamic>
+        : <String, dynamic>{};
+
+    return ReservasDetalleTipoPago(
+        tipoPago: pagoAdicional["descripcion"]?.toString() ?? "N/A",
+        monto: pagoAdicional["monto"]?.toString() ?? "0.00",
+        metodoPago: pagoAdicional["metodo"]?.toString() ?? "N/A");
+  }
+}
+
 class ReservaHistorialDetalleModel {
   final String id;
   final String cliente;
@@ -16,6 +39,8 @@ class ReservaHistorialDetalleModel {
   final String marca;
   final String anioModelo;
 
+  final ReservasDetalleTipoPago? detallePago;
+
   ReservaHistorialDetalleModel({
     required this.id,
     required this.cliente,
@@ -27,6 +52,8 @@ class ReservaHistorialDetalleModel {
     required this.placa,
     required this.marca,
     required this.anioModelo,
+
+    this.detallePago,
   });
 
   factory ReservaHistorialDetalleModel.fromJson(Map<String, dynamic> data) {
@@ -37,6 +64,15 @@ class ReservaHistorialDetalleModel {
     final vehiculo = (data["vehiculo"] is Map)
         ? data["vehiculo"] as Map<String, dynamic>
         : <String, dynamic>{};
+
+    ReservasDetalleTipoPago? pagoDetalle;
+    if (data.containsKey("pago_adicional") && data["pago_adicional"] != null) {
+      try {
+        pagoDetalle = ReservasDetalleTipoPago.fromJson(data);
+      } catch (e) {
+        debugPrint("Error al parsear el detalle de pago: $e");
+      }
+    }
 
     final fechaHora = data["fecha_hora"]?.toString() ?? "";
 
@@ -54,6 +90,7 @@ class ReservaHistorialDetalleModel {
       placa: vehiculo["placa"]?.toString() ?? "N/A",
       marca: vehiculo["marca"]?.toString() ?? "N/A",
       anioModelo: vehiculo["año_modelo"]?.toString() ?? "N/A",
+      detallePago: pagoDetalle,
     );
   }
 }
@@ -154,6 +191,7 @@ class _HistorialDetalleScreenState extends State<HistorialDetalleScreen> {
   }
 
   Widget _buildDetailContainer(ReservaHistorialDetalleModel reserva) {
+    final tipoPago = reserva.detallePago;
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -210,6 +248,20 @@ class _HistorialDetalleScreenState extends State<HistorialDetalleScreen> {
                   'Dirección de Destino:',
                   reserva.direccionDestino,
                 ),
+                const Divider(height: 30),
+                //no necesite la ia soy la ostia
+                _buildSectionTitle('Método de Pago'),
+                if (tipoPago != null)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildInfoRow('Tipo de Pago:', tipoPago.tipoPago),
+                      _buildInfoRow('Monto:', 'S/ ${tipoPago.monto}'),
+                      //_buildInfoRow('Método:', tipoPago.metodoPago),
+                    ],
+                  )
+                else
+                  _buildInfoRow('Información de Pago:', 'No especificado'),
                 const Divider(height: 30),
                 _buildSectionTitle('Detalles del Vehículo'),
                 Row(
