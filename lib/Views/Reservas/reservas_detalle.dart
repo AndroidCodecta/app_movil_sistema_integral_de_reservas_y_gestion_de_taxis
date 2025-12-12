@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '/utils/reservas_service.dart';
 import '../widgets/header.dart';
 import '../widgets/bottom_navigation.dart';
+import '/utils/viajes_service.dart';
 import '../Maps/maps_page.dart';
 
 class ReservasDetalleTipoPago {
@@ -297,40 +298,62 @@ class _ReservaDetalleCompletoScreenState
     );
   }
 
-  // ✅ MÉTODO CORREGIDO - ESTE ES EL CAMBIO IMPORTANTE
   Widget _buildActionButton(BuildContext context) {
     return ElevatedButton.icon(
-      onPressed: () {
+      onPressed: () async {
+        // 1. Extracción de datos (TU CÓDIGO)
+        if (_reservaDetalle == null) return;
+        final int idReserva = _reservaDetalle!.id;
         final monto = _reservaDetalle?.detallePago?.monto;
         final tipo = _reservaDetalle?.detallePago?.tipoPago;
 
-        // ❌ CÓDIGO ANTIGUO (comentado):
-        // Navigator.push(
-        //   context,
-        //   MaterialPageRoute(
-        //     builder: (context) => MapsScreen(
-        //       viajeIniciado: true,
-        //       reservaId: _reservaDetalle?.id,
-        //       montoViaje: monto,
-        //       tipoPago: tipo,
-        //     ),
-        //   ),
-        // );
-
-        // ✅ CÓDIGO NUEVO (mantiene el BottomNavigation visible):
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(
-            builder: (context) => MainLayoutScreen(
-              initialIndex: 3,  // Índice 3 = MapsScreen
-              viajeIniciado: true,
-              reservaId: _reservaDetalle?.id,
-              montoViaje: monto,
-              tipoPago: tipo,
-            ),
+        // --- AGREGADO: Mostrar Carga ---
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const Center(
+            child: CircularProgressIndicator(color: Color(0xFFFFD60A)),
           ),
-              (route) => false,  // Elimina todas las rutas anteriores
         );
+
+        // --- AGREGADO: Consumo del Service ---
+        // Aquí usamos el idReserva que acabas de sacar de _reservaDetalle
+        final bool exito = await ViajesService.iniciarViaje(idReserva,"00:00:00");
+
+        // --- AGREGADO: Ocultar Carga ---
+        if (context.mounted) {
+          Navigator.pop(context);
+        }
+
+        // 2. Lógica de Navegación
+        if (exito) {
+          if (!context.mounted) return;
+
+          // (TU CÓDIGO DE NAVEGACIÓN ORIGINAL)
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(
+              builder: (context) => MainLayoutScreen(
+                initialIndex: 3, // Índice 3 = MapsScreen
+                viajeIniciado: true,
+                reservaId: idReserva, // Pasamos el ID extraído
+                montoViaje: monto,
+                tipoPago: tipo,
+              ),
+            ),
+                (route) => false, // Elimina todas las rutas anteriores
+          );
+        } else {
+          // Si falló el servicio, mostramos error y NO navegamos
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Error al iniciar el viaje. Intenta nuevamente.'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
       },
       icon: const Icon(Icons.navigation_sharp, size: 28),
       label: const Text(
@@ -346,7 +369,6 @@ class _ReservaDetalleCompletoScreenState
       ),
     );
   }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
