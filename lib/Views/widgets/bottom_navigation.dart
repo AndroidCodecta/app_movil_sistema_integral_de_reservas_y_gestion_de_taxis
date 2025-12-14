@@ -54,7 +54,7 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
       MapsScreen(
         viajeIniciado: widget.viajeIniciado ?? false,
         reservaId: widget.reservaId,
-        horaEsperadaRecogidaReal: widget.horaEsperadaRecogidaReal,
+        fechaHoraProgramadaStr: widget.horaEsperadaRecogidaReal?.toString(),
         montoViaje: widget.montoViaje,
         tipoPago: widget.tipoPago,
       ),

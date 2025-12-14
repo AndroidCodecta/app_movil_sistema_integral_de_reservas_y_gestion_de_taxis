@@ -301,13 +301,24 @@ class _ReservaDetalleCompletoScreenState
   Widget _buildActionButton(BuildContext context) {
     return ElevatedButton.icon(
       onPressed: () async {
-        // 1. Extracción de datos (TU CÓDIGO)
         if (_reservaDetalle == null) return;
+
+        // 1. Extraer datos
         final int idReserva = _reservaDetalle!.id;
         final monto = _reservaDetalle?.detallePago?.monto;
         final tipo = _reservaDetalle?.detallePago?.tipoPago;
 
-        // --- AGREGADO: Mostrar Carga ---
+        // Datos nuevos para el mapa
+        final dirOrigen = _reservaDetalle!.direccionEncuentro;
+        final dirDestino = _reservaDetalle!.direccionDestino;
+
+        // Construir la fecha/hora programada para la lógica del timer
+        // Asumiendo formato "yyyy-MM-dd" y "HH:mm"
+        String fechaStr = _reservaDetalle!.fechaReserva;
+        String horaStr = _reservaDetalle!.horaRecogida;
+        // Concatenamos para pasar un String ISO o similar que MapsScreen pueda parsear
+        String fechaHoraProgramada = "$fechaStr $horaStr";
+
         showDialog(
           context: context,
           barrierDismissible: false,
@@ -316,35 +327,32 @@ class _ReservaDetalleCompletoScreenState
           ),
         );
 
-        // --- AGREGADO: Consumo del Service ---
-        // Aquí usamos el idReserva que acabas de sacar de _reservaDetalle
-        final bool exito = await ViajesService.iniciarViaje(idReserva,"00:00:00");
+        final bool exito = await ViajesService.iniciarViaje(idReserva, "00:00:00");
 
-        // --- AGREGADO: Ocultar Carga ---
         if (context.mounted) {
           Navigator.pop(context);
         }
 
-        // 2. Lógica de Navegación
         if (exito) {
           if (!context.mounted) return;
 
-          // (TU CÓDIGO DE NAVEGACIÓN ORIGINAL)
           Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(
-              builder: (context) => MainLayoutScreen(
-                initialIndex: 3, // Índice 3 = MapsScreen
+              builder: (context) => MapsScreen( // O MainLayoutScreen index 3
                 viajeIniciado: true,
-                reservaId: idReserva, // Pasamos el ID extraído
+                reservaId: idReserva,
                 montoViaje: monto,
                 tipoPago: tipo,
+                // --- NUEVOS PARAMETROS ---
+                direccionOrigen: dirOrigen,
+                direccionDestino: dirDestino,
+                fechaHoraProgramadaStr: fechaHoraProgramada,
               ),
             ),
-                (route) => false, // Elimina todas las rutas anteriores
+                (route) => false,
           );
         } else {
-          // Si falló el servicio, mostramos error y NO navegamos
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -368,8 +376,7 @@ class _ReservaDetalleCompletoScreenState
         elevation: 5,
       ),
     );
-  }
-  @override
+  }  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[100],
