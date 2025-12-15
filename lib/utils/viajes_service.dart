@@ -119,13 +119,27 @@ class ViajesService {
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final jsonResponse = jsonDecode(response.body);
-        // Validar éxito según tu backend
-        return jsonResponse["status"] == "success" ||
-            jsonResponse["success"] == true;
+        return true;
       }
+      if (response.body.isNotEmpty) {
+        try {
+          final Map<String, dynamic> jsonResponse = jsonDecode(response.body);
 
-      print("Error Pago (${response.statusCode}): ${response.body}");
+          final String message = jsonResponse['message']?.toString() ?? '';
+
+          if (message.contains("registrado con éxito")) {
+            print("PAGO CONFIRMADO (A pesar del Status ${response.statusCode})");
+            return true;
+          }
+          print("Error API (Status ${response.statusCode}): ${jsonResponse['message']}");
+          return false;
+
+        } catch (e) {
+          print("Error: Respuesta no es JSON. Status: ${response.statusCode}");
+          return false;
+        }
+      }
+      print("Error desconocido. Status: ${response.statusCode}");
       return false;
     } catch (e) {
       print("Excepción Pago: $e");
