@@ -5,22 +5,23 @@ import '../widgets/header.dart';
 // Asegúrate de que la ruta sea correcta según tu estructura de carpetas
 import '/utils/viajes_service.dart';
 
+// --- Enums y Clases de Modelo ---
 enum TripStatus {
   EN_CAMINO,
   EN_PUNTO_ENCUENTRO,
   EN_VIAJE,
   DESTINO_LLEGADO,
-  PAGO_COMPLETADO
+  PAGO_COMPLETADO,
 }
 
 class TripEvent {
   final TripStatus status;
   final String description;
   DateTime? timestamp;
-
   TripEvent(this.status, this.description, {this.timestamp});
 }
 
+// --- Widget Principal ---
 class MapsScreen extends StatefulWidget {
   final bool viajeIniciado;
   final int? reservaId;
@@ -29,6 +30,10 @@ class MapsScreen extends StatefulWidget {
   final String? direccionOrigen;
   final String? direccionDestino;
   final String? fechaHoraProgramadaStr;
+  // PROPIEDADES PARA PERSISTENCIA/REANUDACIÓN
+  final List<TripEvent>? initialTripTimeline;
+  final int initialWaitMilliseconds;
+  final int initialTravelMilliseconds;
 
   const MapsScreen({
     super.key,
@@ -39,6 +44,9 @@ class MapsScreen extends StatefulWidget {
     this.direccionOrigen,
     this.direccionDestino,
     this.fechaHoraProgramadaStr,
+    this.initialTripTimeline,
+    this.initialWaitMilliseconds = 0,
+    this.initialTravelMilliseconds = 0,
   });
 
   @override
@@ -46,30 +54,44 @@ class MapsScreen extends StatefulWidget {
 }
 
 class _MapsScreenState extends State<MapsScreen> {
+  // --- Estado del Viaje y Datos Iniciales ---
   late String _montoViaje;
   late String _tipoPago;
   TripStatus _currentStatus = TripStatus.EN_CAMINO;
   late List<TripEvent> _tripTimeline;
 
+  // --- Lógica de Temporizadores ---
   final Stopwatch _waitStopwatch = Stopwatch();
   final Stopwatch _travelStopwatch = Stopwatch();
   Timer? _timer;
-
   Duration _waitDuration = Duration.zero;
   Duration _travelDuration = Duration.zero;
+
   DateTime? _scheduledTime;
   bool _isWaitingForScheduledTime = false;
 
+  // --- Lógica de Pago ---
   String _selectedPaymentMethod = "Efectivo";
   final TextEditingController _observacionController = TextEditingController();
   final List<String> _paymentMethods = ["Efectivo", "Yape", "PLIN"];
 
+  // --- Ciclo de Vida del Widget ---
   @override
   void initState() {
     super.initState();
+    _initializeData();
+    _initializeTripState();
+    // Solo iniciar el ticker si el estado está activo
+    if (widget.viajeIniciado &&
+        _currentStatus != TripStatus.DESTINO_LLEGADO &&
+        _currentStatus != TripStatus.PAGO_COMPLETADO) {
+      _startTicker();
+    }
+  }
+
+  void _initializeData() {
     _montoViaje = "S/. ${widget.montoViaje ?? '0.00'}";
     _tipoPago = widget.tipoPago ?? "Efectivo";
-
     if (widget.fechaHoraProgramadaStr != null) {
       try {
         _scheduledTime = DateTime.parse(widget.fechaHoraProgramadaStr!.trim());
@@ -78,18 +100,40 @@ class _MapsScreenState extends State<MapsScreen> {
         _scheduledTime = DateTime.now();
       }
     }
+  }
 
-    _tripTimeline = [
-      TripEvent(TripStatus.EN_CAMINO, 'En camino al punto de encuentro'),
-      TripEvent(TripStatus.EN_PUNTO_ENCUENTRO, 'Llegada al punto de encuentro'),
-      TripEvent(TripStatus.EN_VIAJE, 'Viaje iniciado'),
-      TripEvent(TripStatus.DESTINO_LLEGADO, 'Llegada al destino'),
-    ];
-
-    _tripTimeline[0].timestamp = DateTime.now();
-
-    if (widget.viajeIniciado) {
-      _startTicker();
+  void _initializeTripState() {
+    // CASO 1: Retomar un viaje existente
+    if (widget.initialTripTimeline != null &&
+        widget.initialTripTimeline!.isNotEmpty) {
+      _tripTimeline = widget.initialTripTimeline!;
+      _currentStatus = _tripTimeline.last.status;
+      // Reanudar cronómetros con el tiempo guardado
+      if (_currentStatus == TripStatus.EN_PUNTO_ENCUENTRO) {
+        _waitDuration = Duration(milliseconds: widget.initialWaitMilliseconds);
+        _waitStopwatch.start();
+      } else if (_currentStatus == TripStatus.EN_VIAJE) {
+        _travelDuration = Duration(
+          milliseconds: widget.initialTravelMilliseconds,
+        );
+        _travelStopwatch.start();
+      }
+    } else {
+      // CASO 2: Iniciar un viaje nuevo
+      _tripTimeline = [
+        TripEvent(
+          TripStatus.EN_CAMINO,
+          'En camino al punto de encuentro',
+          timestamp: DateTime.now(),
+        ),
+        TripEvent(
+          TripStatus.EN_PUNTO_ENCUENTRO,
+          'Llegada al punto de encuentro',
+        ),
+        TripEvent(TripStatus.EN_VIAJE, 'Viaje iniciado'),
+        TripEvent(TripStatus.DESTINO_LLEGADO, 'Llegada al destino'),
+      ];
+      _currentStatus = TripStatus.EN_CAMINO;
     }
   }
 
@@ -102,32 +146,48 @@ class _MapsScreenState extends State<MapsScreen> {
     super.dispose();
   }
 
+  // --- Lógica de Negocio (Timers y Avance de Estado) ---
+  // Lógica de temporizador CORREGIDA para manejar la reanudación del tiempo.
   void _startTicker() {
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) return;
-
       setState(() {
         final now = DateTime.now();
-
+        // Lógica para el estado EN_PUNTO_ENCUENTRO
         if (_currentStatus == TripStatus.EN_PUNTO_ENCUENTRO) {
           if (_scheduledTime != null && now.isBefore(_scheduledTime!)) {
+            // Antes de la hora programada
             _isWaitingForScheduledTime = true;
+            if (_waitStopwatch.isRunning) {
+              _waitStopwatch.stop();
+            }
           } else {
+            // Hora programada alcanzada o no hay hora programada
             _isWaitingForScheduledTime = false;
             if (!_waitStopwatch.isRunning) {
               _waitStopwatch.start();
             }
           }
+          // Cálculo de duración: Tiempo inicial guardado + Tiempo transcurrido desde el último start/reset
           if (_waitStopwatch.isRunning) {
-            _waitDuration = _waitStopwatch.elapsed;
+            _waitDuration =
+                Duration(milliseconds: widget.initialWaitMilliseconds) +
+                    _waitStopwatch.elapsed;
+          } else {
+            // Si está parado (ej. esperando hora programada), solo muestra el tiempo cargado
+            _waitDuration = Duration(
+              milliseconds: widget.initialWaitMilliseconds,
+            );
           }
         }
-
+        // Lógica para el estado EN_VIAJE
         if (_currentStatus == TripStatus.EN_VIAJE) {
           if (!_travelStopwatch.isRunning) {
             _travelStopwatch.start();
           }
-          _travelDuration = _travelStopwatch.elapsed;
+          _travelDuration =
+              Duration(milliseconds: widget.initialTravelMilliseconds) +
+                  _travelStopwatch.elapsed;
         }
       });
     });
@@ -141,18 +201,23 @@ class _MapsScreenState extends State<MapsScreen> {
     return "$hours:$minutes:$seconds";
   }
 
+  // Lógica de transición de estado y llamada API
   Future<void> _handleButtonAction() async {
     if (widget.reservaId == null) return;
-
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator(color: Color(0xFFFFD60A))),
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: Color(0xFFFFD60A)),
+      ),
     );
 
     bool success = false;
     final int id = widget.reservaId!;
-
+    // Nota: La implementación real requeriría enviar
+    // la lista de eventos y los tiempos de cronómetro
+    // (`_waitDuration.inMilliseconds` o `_travelDuration.inMilliseconds`)
+    // al backend para su persistencia.
     try {
       switch (_currentStatus) {
         case TripStatus.EN_CAMINO:
@@ -180,7 +245,11 @@ class _MapsScreenState extends State<MapsScreen> {
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Error de conexión."), backgroundColor: Colors.red));
+          const SnackBar(
+            content: Text("Error de conexión."),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
@@ -189,40 +258,40 @@ class _MapsScreenState extends State<MapsScreen> {
     setState(() {
       final currentStatusIndex = _currentStatus.index;
       final nextStatusIndex = currentStatusIndex + 1;
-
       if (nextStatusIndex < TripStatus.values.length) {
         final nextStatus = TripStatus.values[nextStatusIndex];
         _currentStatus = nextStatus;
-
+        // Marca el timestamp del siguiente evento completado
         for (var event in _tripTimeline) {
           if (event.status == nextStatus) {
             event.timestamp = DateTime.now();
             break;
           }
         }
-
         switch (nextStatus) {
           case TripStatus.EN_PUNTO_ENCUENTRO:
+            _waitStopwatch.reset(); // Reinicia el contador de stopwatch
             _startTicker();
             break;
           case TripStatus.EN_VIAJE:
             _waitStopwatch.stop();
+            _travelStopwatch
+                .reset(); // Reinicia el contador de stopwatch de viaje
             _travelStopwatch.start();
             break;
           case TripStatus.DESTINO_LLEGADO:
             _travelStopwatch.stop();
             _timer?.cancel();
-            bool esConvenio = _tipoPago.toLowerCase().contains("crédito") ||
-                _tipoPago.toLowerCase().contains("corporativo") ||
-                _tipoPago.toLowerCase().contains("vale") ||
-                _tipoPago.toLowerCase().contains("convenio");
+            bool esConvenio =
+                _tipoPago.toLowerCase().contains("crédito") ||
+                    _tipoPago.toLowerCase().contains("corporativo") ||
+                    _tipoPago.toLowerCase().contains("vale") ||
+                    _tipoPago.toLowerCase().contains("convenio");
             if (esConvenio) {
               _currentStatus = TripStatus.PAGO_COMPLETADO;
             }
             break;
-          case TripStatus.PAGO_COMPLETADO:
-            break;
-          case TripStatus.EN_CAMINO:
+          default:
             break;
         }
       }
@@ -231,7 +300,11 @@ class _MapsScreenState extends State<MapsScreen> {
 
   Future<void> _handlePaymentSubmit() async {
     if (widget.reservaId == null) return;
-    showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
 
     bool success = await ViajesService.registrarPagoAdicional(
       reservaId: widget.reservaId!,
@@ -245,14 +318,20 @@ class _MapsScreenState extends State<MapsScreen> {
     if (success) {
       setState(() => _currentStatus = TripStatus.PAGO_COMPLETADO);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al registrar cobro'), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Error al registrar cobro'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
+  // --- Lógica de Diálogo y Restricción de Anticipación (Máx. 5 min) ---
   Future<void> _showConfirmationDialog() async {
     String title = "";
     String content = "";
-
+    bool blockAction = false;
     switch (_currentStatus) {
       case TripStatus.EN_CAMINO:
         title = "Confirmar Llegada";
@@ -260,9 +339,20 @@ class _MapsScreenState extends State<MapsScreen> {
         break;
       case TripStatus.EN_PUNTO_ENCUENTRO:
         title = "Comenzar Viaje";
-        if (_isWaitingForScheduledTime) {
-          content = "Aún falta para la hora programada. ¿Deseas iniciar el viaje de todos modos?";
+        if (_isWaitingForScheduledTime && _scheduledTime != null) {
+          final diff = _scheduledTime!.difference(DateTime.now());
+          if (diff.inMinutes > 5) {
+            // Bloqueado: Más de 5 minutos antes de la hora
+            content =
+            "No puedes iniciar el viaje. La hora programada es en ${diff.inMinutes} minutos. El límite de anticipación es de 5 minutos.";
+            blockAction = true;
+          } else {
+            // Advertencia: Menos de 5 minutos antes, se permite forzar
+            content =
+            "Aún falta para la hora programada (Faltan ${diff.inMinutes} min). ¿Deseas iniciar el viaje de todos modos?";
+          }
         } else {
+          // Ya pasó la hora o no es programada
           content = "¿El pasajero subió al vehículo?";
         }
         break;
@@ -282,14 +372,22 @@ class _MapsScreenState extends State<MapsScreen> {
           title: Text(title),
           content: Text(content),
           actions: <Widget>[
-            TextButton(child: const Text('Cancelar'), onPressed: () => Navigator.of(context).pop()),
+            TextButton(
+              child: const Text('Cancelar'),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.black, foregroundColor: Colors.white),
-              child: const Text('Confirmar'),
-              onPressed: () {
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.black,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: blockAction
+                  ? null
+                  : () {
                 Navigator.of(context).pop();
                 _handleButtonAction();
               },
+              child: Text(blockAction ? 'Entendido' : 'Confirmar'),
             ),
           ],
         );
@@ -297,50 +395,49 @@ class _MapsScreenState extends State<MapsScreen> {
     );
   }
 
+  // --- Construcción de Widgets (UI) ---
   @override
   Widget build(BuildContext context) {
-    bool showingPaymentUI = _currentStatus == TripStatus.DESTINO_LLEGADO ||
-        _currentStatus == TripStatus.PAGO_COMPLETADO;
-
-    // --- CORRECCIÓN CLAVE: Usamos Scaffold en lugar de Container ---
+    bool showingPaymentUI =
+        _currentStatus == TripStatus.DESTINO_LLEGADO ||
+            _currentStatus == TripStatus.PAGO_COMPLETADO;
     return Scaffold(
-      backgroundColor: Colors.grey[50], // Fondo gris claro
+      backgroundColor: Colors.grey[50],
       body: Column(
         children: [
           const LogoHeader(titulo: 'Viaje en Curso', estiloLogin: false),
-
           if (widget.viajeIniciado)
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 10.0,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _buildAddressCard(),
                     const SizedBox(height: 15),
-
                     if (_currentStatus != TripStatus.PAGO_COMPLETADO)
                       _buildDynamicTimer(),
-
                     const SizedBox(height: 20),
-
-                    if (!showingPaymentUI)
-                      _buildSingleActionButton(),
-
+                    if (!showingPaymentUI) _buildSingleActionButton(),
                     const SizedBox(height: 20),
-
                     _buildTimeline(),
-
                     if (showingPaymentUI) ...[
                       const SizedBox(height: 20),
                       _buildPaymentSection(),
-                    ]
+                    ],
+                    // ⬇️⬇️⬇️ ESPACIO EXTRA PARA EL BOTTOM NAVIGATION ⬇️⬇️⬇️
+                    const SizedBox(height: 80),
                   ],
                 ),
               ),
             )
           else
-            const Expanded(child: Center(child: Text('No tienes un viaje en curso'))),
+            const Expanded(
+              child: Center(child: Text('No tienes un viaje en curso')),
+            ),
         ],
       ),
     );
@@ -352,25 +449,49 @@ class _MapsScreenState extends State<MapsScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         children: [
-          _buildAddressRow(Icons.my_location, Colors.green, "Origen", widget.direccionOrigen ?? "---"),
+          _buildAddressRow(
+            Icons.my_location,
+            Colors.green,
+            "Origen",
+            widget.direccionOrigen ?? "---",
+          ),
           const Padding(
             padding: EdgeInsets.only(left: 11),
             child: Align(
               alignment: Alignment.centerLeft,
-              child: SizedBox(height: 16, child: VerticalDivider(color: Colors.grey, thickness: 1)),
+              child: SizedBox(
+                height: 16,
+                child: VerticalDivider(color: Colors.grey, thickness: 1),
+              ),
             ),
           ),
-          _buildAddressRow(Icons.location_on, Colors.red, "Destino", widget.direccionDestino ?? "---"),
+          _buildAddressRow(
+            Icons.location_on,
+            Colors.red,
+            "Destino",
+            widget.direccionDestino ?? "---",
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildAddressRow(IconData icon, Color color, String label, String text) {
+  Widget _buildAddressRow(
+      IconData icon,
+      Color color,
+      String label,
+      String text,
+      ) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -380,44 +501,67 @@ class _MapsScreenState extends State<MapsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[600], fontWeight: FontWeight.bold)),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(height: 2),
-              Text(text, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500), maxLines: 2, overflow: TextOverflow.ellipsis),
+              Text(
+                text,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
             ],
           ),
-        )
+        ),
       ],
     );
   }
 
+  // Lógica visual del temporizador, incluye estado de 'ANTICIPACIÓN EXCESIVA'
   Widget _buildDynamicTimer() {
     String label = "Estado";
     String timeValue = "--:--:--";
     String subLabel = "";
     Color bgColor = Colors.grey.shade200;
     Color fgColor = Colors.grey.shade700;
-
     switch (_currentStatus) {
       case TripStatus.EN_CAMINO:
         label = "EN CAMINO";
         if (_scheduledTime != null) {
-          String hora = "${_scheduledTime!.hour.toString().padLeft(2,'0')}:${_scheduledTime!.minute.toString().padLeft(2,'0')}";
+          String hora =
+              "${_scheduledTime!.hour.toString().padLeft(2, '0')}:${_scheduledTime!.minute.toString().padLeft(2, '0')}";
           subLabel = "Hora prog: $hora";
         }
         bgColor = Colors.blue.shade50;
         fgColor = Colors.blue.shade800;
         break;
-
       case TripStatus.EN_PUNTO_ENCUENTRO:
-        if (_isWaitingForScheduledTime) {
-          label = "ANTICIPADO";
-          timeValue = "ESPERANDO";
-          if (_scheduledTime != null) {
-            final diff = _scheduledTime!.difference(DateTime.now());
+        if (_isWaitingForScheduledTime && _scheduledTime != null) {
+          final diff = _scheduledTime!.difference(DateTime.now());
+          if (diff.inMinutes > 5) {
+            // Estado de bloqueo por anticipación excesiva
+            label = "ANTICIPACIÓN EXCESIVA";
+            timeValue = "BLOQUEADO";
+            subLabel = "Faltan ${diff.inMinutes} min (Máx 5 min)";
+            bgColor = Colors.red.shade100;
+            fgColor = Colors.red.shade900;
+          } else {
+            // Estado de espera normal (menos de 5 minutos de anticipación)
+            label = "ANTICIPADO";
+            timeValue = "ESPERANDO";
             subLabel = "Faltan ${diff.inMinutes} min";
+            bgColor = Colors.amber.shade100;
+            fgColor = Colors.amber.shade900;
           }
-          bgColor = Colors.amber.shade100;
-          fgColor = Colors.amber.shade900;
         } else {
           label = "TIEMPO DE ESPERA";
           timeValue = _formatDuration(_waitDuration);
@@ -425,14 +569,12 @@ class _MapsScreenState extends State<MapsScreen> {
           fgColor = Colors.orange.shade900;
         }
         break;
-
       case TripStatus.EN_VIAJE:
         label = "EN VIAJE";
         timeValue = _formatDuration(_travelDuration);
         bgColor = Colors.green.shade100;
         fgColor = Colors.green.shade900;
         break;
-
       case TripStatus.DESTINO_LLEGADO:
         label = "DESTINO ALCANZADO";
         bgColor = Colors.purple.shade50;
@@ -452,13 +594,31 @@ class _MapsScreenState extends State<MapsScreen> {
       ),
       child: Column(
         children: [
-          Text(label, style: TextStyle(fontWeight: FontWeight.bold, color: fgColor, fontSize: 13, letterSpacing: 1.0)),
+          Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: fgColor,
+              fontSize: 13,
+              letterSpacing: 1.0,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(timeValue, style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: fgColor)),
+          Text(
+            timeValue,
+            style: TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.bold,
+              color: fgColor,
+            ),
+          ),
           if (subLabel.isNotEmpty) ...[
             const SizedBox(height: 4),
-            Text(subLabel, style: TextStyle(fontSize: 13, color: fgColor.withOpacity(0.9))),
-          ]
+            Text(
+              subLabel,
+              style: TextStyle(fontSize: 13, color: fgColor.withOpacity(0.9)),
+            ),
+          ],
         ],
       ),
     );
@@ -468,7 +628,6 @@ class _MapsScreenState extends State<MapsScreen> {
     String buttonText = '';
     Color buttonColor = Colors.blue;
     IconData icon = Icons.check;
-
     switch (_currentStatus) {
       case TripStatus.EN_CAMINO:
         buttonText = 'Llegué al Punto';
@@ -492,7 +651,10 @@ class _MapsScreenState extends State<MapsScreen> {
     return ElevatedButton.icon(
       onPressed: _showConfirmationDialog,
       icon: Icon(icon, size: 22),
-      label: Text(buttonText, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+      label: Text(
+        buttonText,
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+      ),
       style: ElevatedButton.styleFrom(
         minimumSize: const Size(double.infinity, 50),
         backgroundColor: buttonColor,
@@ -505,30 +667,58 @@ class _MapsScreenState extends State<MapsScreen> {
 
   Widget _buildTimeline() {
     return Container(
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade200)),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
       padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('HISTORIAL:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+          const Text(
+            'HISTORIAL:',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey,
+            ),
+          ),
           const SizedBox(height: 8),
           ..._tripTimeline.asMap().entries.map((entry) {
             bool isCompleted = entry.value.timestamp != null;
             String timeStr = isCompleted
-                ? "${entry.value.timestamp!.hour.toString().padLeft(2,'0')}:${entry.value.timestamp!.minute.toString().padLeft(2,'0')}"
+                ? "${entry.value.timestamp!.hour.toString().padLeft(2, '0')}:${entry.value.timestamp!.minute.toString().padLeft(2, '0')}"
                 : "";
-
             return Padding(
               padding: const EdgeInsets.only(bottom: 8.0),
               child: Row(
                 children: [
-                  Icon(isCompleted ? Icons.check_circle : Icons.radio_button_unchecked, color: isCompleted ? Colors.green : Colors.grey[300], size: 18),
+                  Icon(
+                    isCompleted
+                        ? Icons.check_circle
+                        : Icons.radio_button_unchecked,
+                    color: isCompleted ? Colors.green : Colors.grey[300],
+                    size: 18,
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: Text(entry.value.description, style: TextStyle(fontSize: 13, color: isCompleted ? Colors.black87 : Colors.grey, fontWeight: isCompleted ? FontWeight.w500 : FontWeight.normal)),
+                    child: Text(
+                      entry.value.description,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: isCompleted ? Colors.black87 : Colors.grey,
+                        fontWeight: isCompleted
+                            ? FontWeight.w500
+                            : FontWeight.normal,
+                      ),
+                    ),
                   ),
                   if (timeStr.isNotEmpty)
-                    Text(timeStr, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                    Text(
+                      timeStr,
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
                 ],
               ),
             );
@@ -539,45 +729,171 @@ class _MapsScreenState extends State<MapsScreen> {
   }
 
   Widget _buildPaymentSection() {
-    bool esConvenio = _tipoPago.toLowerCase().contains("crédito") || _tipoPago.toLowerCase().contains("corporativo") || _tipoPago.toLowerCase().contains("vale") || _tipoPago.toLowerCase().contains("convenio");
+    bool esConvenio =
+        _tipoPago.toLowerCase().contains("crédito") ||
+            _tipoPago.toLowerCase().contains("corporativo") ||
+            _tipoPago.toLowerCase().contains("vale") ||
+            _tipoPago.toLowerCase().contains("convenio");
 
+    // UI para Pago Completado / Viaje Finalizado (Convenio)
     if (_currentStatus == TripStatus.PAGO_COMPLETADO) {
       return Container(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.green.shade200)),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.green.shade200),
+        ),
         child: Column(
           children: [
             const Icon(Icons.check_circle, color: Colors.green, size: 50),
             const SizedBox(height: 10),
-            Text(esConvenio ? "Viaje Finalizado" : "Pago Registrado", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+            Text(
+              esConvenio ? "Viaje Finalizado" : "Pago Registrado",
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.green.shade800,
+              ),
+            ),
             const SizedBox(height: 4),
-            Text(esConvenio ? "El servicio por convenio ha concluido." : "Cobro exitoso.", textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+            Text(
+              esConvenio
+                  ? "El servicio por convenio ha concluido."
+                  : "Cobro exitoso.",
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.grey, fontSize: 13),
+            ),
             const SizedBox(height: 15),
-            SizedBox(width: double.infinity, child: ElevatedButton(
-              onPressed: () => Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const MainLayoutScreen()), (route) => false),
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFD60A), foregroundColor: Colors.black, minimumSize: const Size(double.infinity, 45)),
-              child: const Text("VOLVER AL INICIO", style: TextStyle(fontWeight: FontWeight.bold)),
-            )),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const MainLayoutScreen(),
+                  ),
+                      (route) => false,
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFFD60A),
+                  foregroundColor: Colors.black,
+                  minimumSize: const Size(double.infinity, 45),
+                ),
+                child: const Text(
+                  "VOLVER AL INICIO",
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
           ],
         ),
       );
     }
 
+    // UI para Registrar Cobro
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: const Offset(0, 4))]),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("REGISTRAR COBRO", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)), Chip(label: Text(_tipoPago, style: const TextStyle(fontSize: 11)), backgroundColor: Colors.blue.shade50, padding: EdgeInsets.zero, visualDensity: VisualDensity.compact)]),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                "REGISTRAR COBRO",
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+              ),
+              Chip(
+                label: Text(_tipoPago, style: const TextStyle(fontSize: 11)),
+                backgroundColor: Colors.blue.shade50,
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
           const Divider(),
-          Center(child: Text(_montoViaje, style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Colors.blue.shade900))),
+          Center(
+            child: Text(
+              _montoViaje,
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.w900,
+                color: Colors.blue.shade900,
+              ),
+            ),
+          ),
           const SizedBox(height: 15),
-          DropdownButtonFormField<String>(value: _selectedPaymentMethod, isDense: true, decoration: InputDecoration(labelText: "Método de Pago", border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12)), items: _paymentMethods.map((m) => DropdownMenuItem(value: m, child: Text(m, style: const TextStyle(fontSize: 14)))).toList(), onChanged: (v) => setState(() => _selectedPaymentMethod = v!)),
+          DropdownButtonFormField<String>(
+            value: _selectedPaymentMethod,
+            isDense: true,
+            decoration: InputDecoration(
+              labelText: "Método de Pago",
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 12,
+              ),
+            ),
+            items: _paymentMethods
+                .map(
+                  (m) => DropdownMenuItem(
+                value: m,
+                child: Text(m, style: const TextStyle(fontSize: 14)),
+              ),
+            )
+                .toList(),
+            onChanged: (v) => setState(() => _selectedPaymentMethod = v!),
+          ),
           const SizedBox(height: 12),
-          TextField(controller: _observacionController, decoration: InputDecoration(labelText: "Observación (Opcional)", border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12)), maxLines: 2, style: const TextStyle(fontSize: 14)),
+          TextField(
+            controller: _observacionController,
+            decoration: InputDecoration(
+              labelText: "Observación (Opcional)",
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 12,
+              ),
+            ),
+            maxLines: 2,
+            style: const TextStyle(fontSize: 14),
+          ),
           const SizedBox(height: 15),
-          SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: _handlePaymentSubmit, icon: const Icon(Icons.attach_money, size: 20), label: const Text("CONFIRMAR COBRO", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)), style: ElevatedButton.styleFrom(backgroundColor: Colors.black, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))))),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _handlePaymentSubmit,
+              icon: const Icon(Icons.attach_money, size: 20),
+              label: const Text(
+                "CONFIRMAR COBRO",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.black,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(double.infinity, 50),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

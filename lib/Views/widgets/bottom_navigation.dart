@@ -9,7 +9,6 @@ class MainLayoutScreen extends StatefulWidget {
   final int initialIndex;
   final bool? viajeIniciado;
   final int? reservaId;
-  final DateTime? horaEsperadaRecogidaReal;
   final String? montoViaje;
   final String? tipoPago;
 
@@ -18,7 +17,6 @@ class MainLayoutScreen extends StatefulWidget {
     this.initialIndex = 0,
     this.viajeIniciado,
     this.reservaId,
-    this.horaEsperadaRecogidaReal,
     this.montoViaje,
     this.tipoPago,
   });
@@ -43,20 +41,23 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
     final List<Widget> _screens = [
       // Index 0: Home
       const HomeScreen(reservas: []),
-
       // Index 1: Reservas
       const ReservasScreen(),
-
       // Index 2: Solicitudes
       const SolicitudesPage(),
-
       // Index 3: Mapa - AHORA PUEDE RECIBIR PARÁMETROS
       MapsScreen(
         viajeIniciado: widget.viajeIniciado ?? false,
         reservaId: widget.reservaId,
-        fechaHoraProgramadaStr: widget.horaEsperadaRecogidaReal?.toString(),
         montoViaje: widget.montoViaje,
         tipoPago: widget.tipoPago,
+        // Estos parámetros se obtienen del viaje iniciado
+        direccionOrigen: widget.viajeIniciado == true
+            ? "Dirección guardada del viaje"
+            : null,
+        direccionDestino: widget.viajeIniciado == true
+            ? "Destino guardado del viaje"
+            : null,
       ),
     ];
 
@@ -93,7 +94,6 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
                   : const Icon(Icons.home_outlined),
               label: 'Home',
             ),
-
             // ITEM 1: RESERVAS
             BottomNavigationBarItem(
               icon: _currentIndex == 1
@@ -101,7 +101,6 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
                   : const Icon(Icons.notifications_none),
               label: 'Reservas',
             ),
-
             // ITEM 2: SOLICITUDES
             BottomNavigationBarItem(
               icon: _currentIndex == 2
@@ -109,7 +108,6 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
                   : const Icon(Icons.person_outline),
               label: 'Solicitudes',
             ),
-
             // ITEM 3: MAPA
             BottomNavigationBarItem(
               icon: _currentIndex == 3

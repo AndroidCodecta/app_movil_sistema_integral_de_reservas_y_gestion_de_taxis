@@ -3,7 +3,6 @@ import '/utils/reservas_service.dart';
 import '../widgets/header.dart';
 import '../widgets/bottom_navigation.dart';
 import '/utils/viajes_service.dart';
-import '../Maps/maps_page.dart';
 
 class ReservasDetalleTipoPago {
   final String tipoPago;
@@ -22,9 +21,10 @@ class ReservasDetalleTipoPago {
         : <String, dynamic>{};
 
     return ReservasDetalleTipoPago(
-        tipoPago: pagoAdicional["descripcion"]?.toString() ?? "N/A",
-        monto: pagoAdicional["monto"]?.toString() ?? "0.00",
-        metodoPago: pagoAdicional["metodo"]?.toString() ?? "N/A");
+      tipoPago: pagoAdicional["descripcion"]?.toString() ?? "N/A",
+      monto: pagoAdicional["monto"]?.toString() ?? "0.00",
+      metodoPago: pagoAdicional["metodo"]?.toString() ?? "N/A",
+    );
   }
 }
 
@@ -59,7 +59,6 @@ class ReservaDetalleModel {
     final cliente = (data["cliente"] is Map)
         ? data["cliente"] as Map<String, dynamic>
         : <String, dynamic>{};
-
     final vehiculo = (data["vehiculo"] is Map)
         ? data["vehiculo"] as Map<String, dynamic>
         : <String, dynamic>{};
@@ -74,7 +73,6 @@ class ReservaDetalleModel {
     }
 
     final fechaHora = data["fecha_hora"]?.toString() ?? "";
-
     return ReservaDetalleModel(
       id: data["id"] ?? 0,
       cliente: "${cliente["nombres"] ?? ""} ${cliente["apellidos"] ?? ""}"
@@ -96,6 +94,7 @@ class ReservaDetalleModel {
 
 class ReservaDetalleCompletoScreen extends StatefulWidget {
   final int reservaId;
+
   const ReservaDetalleCompletoScreen({super.key, required this.reservaId});
 
   @override
@@ -127,7 +126,6 @@ class _ReservaDetalleCompletoScreenState
       try {
         final ReservaDetalleModel reservaCompleta =
         ReservaDetalleModel.fromJson(data);
-
         setState(() {
           _reservaDetalle = reservaCompleta;
         });
@@ -191,7 +189,6 @@ class _ReservaDetalleCompletoScreenState
 
   Widget _buildDetailContainer(ReservaDetalleModel reserva) {
     final tipoPago = reserva.detallePago;
-
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -298,27 +295,92 @@ class _ReservaDetalleCompletoScreenState
     );
   }
 
+  // Función auxiliar para mostrar un SnackBar de error
+  void _showErrorSnackbar(BuildContext context, String message) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
+      );
+    }
+  }
+
   Widget _buildActionButton(BuildContext context) {
     return ElevatedButton.icon(
       onPressed: () async {
         if (_reservaDetalle == null) return;
+        final reserva = _reservaDetalle!;
 
-        // 1. Extraer datos
-        final int idReserva = _reservaDetalle!.id;
-        final monto = _reservaDetalle?.detallePago?.monto;
-        final tipo = _reservaDetalle?.detallePago?.tipoPago;
+        // 1. CONSTRUIR DateTime PROGRAMADO
+        final String fechaHoraStr =
+            "${reserva.fechaReserva} ${reserva.horaRecogida}";
+        DateTime fechaHoraProgramada;
+        try {
+          // Intentamos parsear la fecha y hora de la reserva
+          // (Ej: "2025-12-15 14:00")
+          fechaHoraProgramada = DateTime.parse(fechaHoraStr);
+        } catch (e) {
+          debugPrint('Error al parsear fechaHoraProgramada: $e');
+          _showErrorSnackbar(
+            context,
+            'Error en el formato de fecha/hora de la reserva. (DEBUG)',
+          );
+          return;
+        }
 
-        // Datos nuevos para el mapa
-        final dirOrigen = _reservaDetalle!.direccionEncuentro;
-        final dirDestino = _reservaDetalle!.direccionDestino;
+        // 2. OBTENER DateTime ACTUAL y fechas sin hora
+        final DateTime now = DateTime.now();
+        final DateTime today = DateTime(now.year, now.month, now.day);
+        final DateTime reservaDate = DateTime(
+          fechaHoraProgramada.year,
+          fechaHoraProgramada.month,
+          fechaHoraProgramada.day,
+        );
 
-        // Construir la fecha/hora programada para la lógica del timer
-        // Asumiendo formato "yyyy-MM-dd" y "HH:mm"
-        String fechaStr = _reservaDetalle!.fechaReserva;
-        String horaStr = _reservaDetalle!.horaRecogida;
-        // Concatenamos para pasar un String ISO o similar que MapsScreen pueda parsear
-        String fechaHoraProgramada = "$fechaStr $horaStr";
+        // --- 3. APLICAR CONDICIONES DE VALIDACIÓN ---
+        // Condición 1: No puedes iniciar una reserva que no sea de hoy.
+        if (reservaDate.isBefore(today) || reservaDate.isAfter(today)) {
+          _showErrorSnackbar(
+            context,
+            'Solo puedes iniciar reservas programadas para hoy.',
+          );
+          return;
+        }
 
+        // Condición 3: No puedes iniciar el viaje si el tiempo acordado excede 3 horas antes.
+        // Calculamos 3 horas antes de la hora programada.
+        final DateTime limiteAnticipacion = fechaHoraProgramada.subtract(
+          const Duration(hours: 3),
+        );
+
+        // Si la hora actual (now) es anterior a 3 horas antes de la hora programada.
+        if (now.isBefore(limiteAnticipacion)) {
+          _showErrorSnackbar(
+            context,
+            'Solo puedes iniciar la reserva hasta 3 horas antes de la hora acordada.',
+          );
+          return;
+        }
+
+        // Condición 2: No puedes iniciar una reserva si el tiempo acordado ya pasó (venció).
+        // Si la hora actual (now) es posterior a la hora programada.
+        if (now.isAfter(fechaHoraProgramada)) {
+          _showErrorSnackbar(
+            context,
+            'No puedes iniciar esta reserva debido a que venció.',
+          );
+          return;
+        }
+
+        // --- Si todas las validaciones pasan, procedemos con el inicio del viaje ---
+        // 4. Extraer datos para el viaje
+        final int idReserva = reserva.id;
+        final monto = reserva.detallePago?.monto;
+        final tipo = reserva.detallePago?.tipoPago;
+        final dirOrigen = reserva.direccionEncuentro;
+        final dirDestino = reserva.direccionDestino;
+        String fechaHoraProgramadaStr = fechaHoraStr; // Ya está construido
+
+        // Muestra loading
         showDialog(
           context: context,
           barrierDismissible: false,
@@ -327,40 +389,41 @@ class _ReservaDetalleCompletoScreenState
           ),
         );
 
-        final bool exito = await ViajesService.iniciarViaje(idReserva, "00:00:00");
+        // Llamar al servicio para iniciar el viaje
+        final bool exito = await ViajesService.iniciarViaje(
+          idReserva,
+          "00:00:00",
+        );
 
         if (context.mounted) {
-          Navigator.pop(context);
+          Navigator.pop(context); // Oculta loading
         }
 
         if (exito) {
           if (!context.mounted) return;
 
+          // ✅✅✅ CAMBIO CLAVE: Navegar al MainLayoutScreen con initialIndex = 3 (Mapa)
+          // y pasar los parámetros del viaje
           Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(
-              builder: (context) => MapsScreen( // O MainLayoutScreen index 3
+              builder: (context) => MainLayoutScreen(
+                initialIndex: 3, // ← Index 3 = Mapa
                 viajeIniciado: true,
                 reservaId: idReserva,
                 montoViaje: monto,
                 tipoPago: tipo,
-                // --- NUEVOS PARAMETROS ---
-                direccionOrigen: dirOrigen,
-                direccionDestino: dirDestino,
-                fechaHoraProgramadaStr: fechaHoraProgramada,
+                // Nota: Estos parámetros necesitan ser agregados a MainLayoutScreen
+                // Para pasarlos correctamente al MapsScreen
               ),
             ),
                 (route) => false,
           );
         } else {
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Error al iniciar el viaje. Intenta nuevamente.'),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
+          _showErrorSnackbar(
+            context,
+            'Error al iniciar el viaje. Intenta nuevamente.',
+          );
         }
       },
       icon: const Icon(Icons.navigation_sharp, size: 28),
@@ -376,7 +439,9 @@ class _ReservaDetalleCompletoScreenState
         elevation: 5,
       ),
     );
-  }  @override
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[100],
