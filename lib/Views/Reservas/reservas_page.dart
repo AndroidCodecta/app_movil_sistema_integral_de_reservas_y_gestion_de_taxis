@@ -68,49 +68,47 @@ class _ReservasScreenState extends State<ReservasScreen> {
           Expanded(
             child: _isLoading
                 ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFFFFD60A)),
-            )
+                    child: CircularProgressIndicator(color: Color(0xFFFFD60A)),
+                  )
                 : _errorMessage != null
                 ? Center(child: Text('Error: $_errorMessage'))
                 : reservas.isEmpty
                 ? RefreshIndicator(
-              onRefresh: _loadReservas,
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                child: SizedBox(
-                  height:
-                  MediaQuery.of(context).size.height - 200,
-                  child: _buildEmptyState(),
-                ),
-              ),
-            )
+                    onRefresh: _loadReservas,
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: SizedBox(
+                        height: MediaQuery.of(context).size.height - 200,
+                        child: _buildEmptyState(),
+                      ),
+                    ),
+                  )
                 : RefreshIndicator(
-              onRefresh: _loadReservas,
-              child: ListView.builder(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(16.0),
-                itemCount: reservas.length,
-                itemBuilder: (context, index) {
-                  final reservaData = reservas[index];
-                  final int reservaId = reservaData["id"] ?? 0;
+                    onRefresh: _loadReservas,
+                    child: ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(16.0),
+                      itemCount: reservas.length,
+                      itemBuilder: (context, index) {
+                        final reservaData = reservas[index];
+                        final int reservaId = reservaData["id"] ?? 0;
 
-                  return ReservaDetalleCard(
-                    reservaData: reservaData,
-                    onTap: (id) async {
-                      final result = await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              ReservaDetalleCompletoScreen(
-                                  reservaId: id),
-                        ),
-                      );
-                      _onDetailClosed(result);
-                    },
-                  );
-                },
-              ),
-            ),
+                        return ReservaDetalleCard(
+                          reservaData: reservaData,
+                          onTap: (id) async {
+                            final result = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    ReservaDetalleCompletoScreen(reservaId: id),
+                              ),
+                            );
+                            _onDetailClosed(result);
+                          },
+                        );
+                      },
+                    ),
+                  ),
           ),
         ],
       ),
@@ -141,7 +139,7 @@ class ReservaDetalleCard extends StatelessWidget {
         : <String, dynamic>{};
 
     final nombreCliente =
-    "${cliente["nombres"] ?? ""} ${cliente["apellidos"] ?? ""}".trim();
+        "${cliente["nombres"] ?? ""} ${cliente["apellidos"] ?? ""}".trim();
 
     final fechaHora = reservaData["fecha_hora"]?.toString() ?? "";
     final fecha = fechaHora.isNotEmpty ? fechaHora.split(" ")[0] : "---";
@@ -151,7 +149,6 @@ class ReservaDetalleCard extends StatelessWidget {
 
     final encuentro = reservaData["d_encuentro"] ?? "Sin dirección";
     final destino = reservaData["d_destino"] ?? "Sin dirección";
-
 
     if (id == 0) return const SizedBox.shrink();
 

@@ -2,10 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../widgets/bottom_navigation.dart';
 import '../widgets/header.dart';
-// Asegúrate de que la ruta sea correcta según tu estructura de carpetas
 import '/utils/viajes_service.dart';
 
-// --- Enums y Clases de Modelo ---
 enum TripStatus {
   EN_CAMINO,
   EN_PUNTO_ENCUENTRO,
@@ -21,7 +19,6 @@ class TripEvent {
   TripEvent(this.status, this.description, {this.timestamp});
 }
 
-// --- Widget Principal ---
 class MapsScreen extends StatefulWidget {
   final bool viajeIniciado;
   final int? reservaId;
@@ -30,7 +27,6 @@ class MapsScreen extends StatefulWidget {
   final String? direccionOrigen;
   final String? direccionDestino;
   final String? fechaHoraProgramadaStr;
-  // PROPIEDADES PARA PERSISTENCIA/REANUDACIÓN
   final List<TripEvent>? initialTripTimeline;
   final int initialWaitMilliseconds;
   final int initialTravelMilliseconds;
@@ -54,72 +50,57 @@ class MapsScreen extends StatefulWidget {
 }
 
 class _MapsScreenState extends State<MapsScreen> {
-  // --- Estado del Viaje y Datos Iniciales ---
   late String _montoViaje;
   late String _tipoPago;
+  late int? _reservaId;
+  late String _direccionOrigen;
+  late String _direccionDestino;
+  late DateTime _scheduledTime;
   TripStatus _currentStatus = TripStatus.EN_CAMINO;
   late List<TripEvent> _tripTimeline;
 
-  // --- Lógica de Temporizadores ---
-  final Stopwatch _waitStopwatch = Stopwatch();
-  final Stopwatch _travelStopwatch = Stopwatch();
   Timer? _timer;
   Duration _waitDuration = Duration.zero;
   Duration _travelDuration = Duration.zero;
-
-  DateTime? _scheduledTime;
   bool _isWaitingForScheduledTime = false;
 
-  // --- Lógica de Pago ---
+  bool _tripActive = false;
+  bool _hasOngoingTrip = false;
+  Map<String, dynamic>? _ongoingData;
+
   String _selectedPaymentMethod = "Efectivo";
   final TextEditingController _observacionController = TextEditingController();
   final List<String> _paymentMethods = ["Efectivo", "Yape", "PLIN"];
 
-  // --- Ciclo de Vida del Widget ---
   @override
   void initState() {
     super.initState();
-    _initializeData();
-    _initializeTripState();
-    // Solo iniciar el ticker si el estado está activo
-    if (widget.viajeIniciado &&
-        _currentStatus != TripStatus.DESTINO_LLEGADO &&
-        _currentStatus != TripStatus.PAGO_COMPLETADO) {
-      _startTicker();
-    }
-  }
+    _tripActive = widget.viajeIniciado;
 
-  void _initializeData() {
     _montoViaje = "S/. ${widget.montoViaje ?? '0.00'}";
     _tipoPago = widget.tipoPago ?? "Efectivo";
-    if (widget.fechaHoraProgramadaStr != null) {
-      try {
-        _scheduledTime = DateTime.parse(widget.fechaHoraProgramadaStr!.trim());
-      } catch (e) {
-        debugPrint("Error parseando fecha programada: $e");
-        _scheduledTime = DateTime.now();
-      }
+    _reservaId = widget.reservaId;
+    _direccionOrigen = widget.direccionOrigen ?? "---";
+    _direccionDestino = widget.direccionDestino ?? "---";
+    _scheduledTime = widget.fechaHoraProgramadaStr != null
+        ? DateTime.parse(widget.fechaHoraProgramadaStr!.trim())
+        : DateTime.now();
+
+    _initializeTripState();
+
+    if (_tripActive) {
+      _startTicker();
+    } else {
+      _checkOngoingTrip();
     }
   }
 
   void _initializeTripState() {
-    // CASO 1: Retomar un viaje existente
     if (widget.initialTripTimeline != null &&
         widget.initialTripTimeline!.isNotEmpty) {
       _tripTimeline = widget.initialTripTimeline!;
       _currentStatus = _tripTimeline.last.status;
-      // Reanudar cronómetros con el tiempo guardado
-      if (_currentStatus == TripStatus.EN_PUNTO_ENCUENTRO) {
-        _waitDuration = Duration(milliseconds: widget.initialWaitMilliseconds);
-        _waitStopwatch.start();
-      } else if (_currentStatus == TripStatus.EN_VIAJE) {
-        _travelDuration = Duration(
-          milliseconds: widget.initialTravelMilliseconds,
-        );
-        _travelStopwatch.start();
-      }
     } else {
-      // CASO 2: Iniciar un viaje nuevo
       _tripTimeline = [
         TripEvent(
           TripStatus.EN_CAMINO,
@@ -140,54 +121,101 @@ class _MapsScreenState extends State<MapsScreen> {
   @override
   void dispose() {
     _timer?.cancel();
-    _waitStopwatch.stop();
-    _travelStopwatch.stop();
     _observacionController.dispose();
     super.dispose();
   }
 
-  // --- Lógica de Negocio (Timers y Avance de Estado) ---
-  // Lógica de temporizador CORREGIDA para manejar la reanudación del tiempo.
+  Future<void> _checkOngoingTrip() async {
+    final data = await ViajesService.getReservaEnCurso();
+    if (mounted) {
+      setState(() {
+        if (data != null &&
+            data["success"] == true &&
+            data.containsKey("seguimiento")) {
+          _hasOngoingTrip = true;
+          _ongoingData = data;
+
+          // Actualizar variables con datos de la API
+          final seguimiento = data["seguimiento"];
+          final reserva = seguimiento["reserva"];
+          _reservaId = reserva["id"];
+          _direccionOrigen = reserva["d_encuentro"] ?? "---";
+          _direccionDestino = reserva["d_destino"] ?? "---";
+          _scheduledTime = DateTime.parse(reserva["fecha_hora"]);
+          _montoViaje = reserva["precio"] ?? "S/. 0.00";
+          _tipoPago = reserva["tipo"] == 1 ? "Efectivo" : "Otro";
+        } else {
+          _hasOngoingTrip = false;
+        }
+      });
+    }
+  }
+
+  void _resumeTrip() {
+    final seguimiento = _ongoingData!["seguimiento"];
+
+    final String? horaLlegadaStr = seguimiento["hora_llegada"];
+    final String? inicioServicioStr = seguimiento["inicio_servicio"];
+    final String? finServicioStr = seguimiento["fin_servicio"];
+
+    DateTime? horaLlegada = horaLlegadaStr != null
+        ? DateTime.parse(horaLlegadaStr)
+        : null;
+    DateTime? inicioServicio = inicioServicioStr != null
+        ? DateTime.parse(inicioServicioStr)
+        : null;
+    DateTime? finServicio = finServicioStr != null
+        ? DateTime.parse(finServicioStr)
+        : null;
+
+    _tripTimeline[0].timestamp =
+        horaLlegada ?? DateTime.now().subtract(const Duration(minutes: 5));
+    _tripTimeline[1].timestamp = horaLlegada;
+    _tripTimeline[2].timestamp = inicioServicio;
+    _tripTimeline[3].timestamp = finServicio;
+
+    if (finServicio != null) {
+      _currentStatus = TripStatus.DESTINO_LLEGADO;
+    } else if (inicioServicio != null) {
+      _currentStatus = TripStatus.EN_VIAJE;
+    } else if (horaLlegada != null) {
+      _currentStatus = TripStatus.EN_PUNTO_ENCUENTRO;
+    } else {
+      _currentStatus = TripStatus.EN_CAMINO;
+    }
+
+    setState(() {
+      _hasOngoingTrip = false;
+      _tripActive = true;
+    });
+
+    if (_currentStatus != TripStatus.DESTINO_LLEGADO &&
+        _currentStatus != TripStatus.PAGO_COMPLETADO) {
+      _startTicker();
+    }
+  }
+
   void _startTicker() {
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) return;
       setState(() {
         final now = DateTime.now();
-        // Lógica para el estado EN_PUNTO_ENCUENTRO
         if (_currentStatus == TripStatus.EN_PUNTO_ENCUENTRO) {
-          if (_scheduledTime != null && now.isBefore(_scheduledTime!)) {
-            // Antes de la hora programada
+          final arrival = _tripTimeline[1].timestamp ?? now;
+          final startCount = _scheduledTime.isAfter(arrival)
+              ? _scheduledTime
+              : arrival;
+          if (now.isBefore(startCount)) {
             _isWaitingForScheduledTime = true;
-            if (_waitStopwatch.isRunning) {
-              _waitStopwatch.stop();
-            }
+            _waitDuration = Duration.zero;
           } else {
-            // Hora programada alcanzada o no hay hora programada
             _isWaitingForScheduledTime = false;
-            if (!_waitStopwatch.isRunning) {
-              _waitStopwatch.start();
-            }
-          }
-          // Cálculo de duración: Tiempo inicial guardado + Tiempo transcurrido desde el último start/reset
-          if (_waitStopwatch.isRunning) {
-            _waitDuration =
-                Duration(milliseconds: widget.initialWaitMilliseconds) +
-                    _waitStopwatch.elapsed;
-          } else {
-            // Si está parado (ej. esperando hora programada), solo muestra el tiempo cargado
-            _waitDuration = Duration(
-              milliseconds: widget.initialWaitMilliseconds,
-            );
+            _waitDuration = now.difference(startCount);
           }
         }
-        // Lógica para el estado EN_VIAJE
         if (_currentStatus == TripStatus.EN_VIAJE) {
-          if (!_travelStopwatch.isRunning) {
-            _travelStopwatch.start();
-          }
-          _travelDuration =
-              Duration(milliseconds: widget.initialTravelMilliseconds) +
-                  _travelStopwatch.elapsed;
+          final startTravel = _tripTimeline[2].timestamp ?? now;
+          _travelDuration = now.difference(startTravel);
         }
       });
     });
@@ -201,9 +229,8 @@ class _MapsScreenState extends State<MapsScreen> {
     return "$hours:$minutes:$seconds";
   }
 
-  // Lógica de transición de estado y llamada API
   Future<void> _handleButtonAction() async {
-    if (widget.reservaId == null) return;
+    if (_reservaId == null) return;
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -213,11 +240,7 @@ class _MapsScreenState extends State<MapsScreen> {
     );
 
     bool success = false;
-    final int id = widget.reservaId!;
-    // Nota: La implementación real requeriría enviar
-    // la lista de eventos y los tiempos de cronómetro
-    // (`_waitDuration.inMilliseconds` o `_travelDuration.inMilliseconds`)
-    // al backend para su persistencia.
+    final int id = _reservaId!;
     try {
       switch (_currentStatus) {
         case TripStatus.EN_CAMINO:
@@ -228,7 +251,8 @@ class _MapsScreenState extends State<MapsScreen> {
           success = await ViajesService.iniciarViaje(id, tiempoEspera);
           break;
         case TripStatus.EN_VIAJE:
-          success = await ViajesService.finalizarViaje(id);
+          String tiempoViaje = _formatDuration(_travelDuration);
+          success = await ViajesService.finalizarViaje(id, tiempoViaje);
           break;
         default:
           success = true;
@@ -261,7 +285,6 @@ class _MapsScreenState extends State<MapsScreen> {
       if (nextStatusIndex < TripStatus.values.length) {
         final nextStatus = TripStatus.values[nextStatusIndex];
         _currentStatus = nextStatus;
-        // Marca el timestamp del siguiente evento completado
         for (var event in _tripTimeline) {
           if (event.status == nextStatus) {
             event.timestamp = DateTime.now();
@@ -270,23 +293,17 @@ class _MapsScreenState extends State<MapsScreen> {
         }
         switch (nextStatus) {
           case TripStatus.EN_PUNTO_ENCUENTRO:
-            _waitStopwatch.reset(); // Reinicia el contador de stopwatch
             _startTicker();
             break;
           case TripStatus.EN_VIAJE:
-            _waitStopwatch.stop();
-            _travelStopwatch
-                .reset(); // Reinicia el contador de stopwatch de viaje
-            _travelStopwatch.start();
             break;
           case TripStatus.DESTINO_LLEGADO:
-            _travelStopwatch.stop();
             _timer?.cancel();
             bool esConvenio =
                 _tipoPago.toLowerCase().contains("crédito") ||
-                    _tipoPago.toLowerCase().contains("corporativo") ||
-                    _tipoPago.toLowerCase().contains("vale") ||
-                    _tipoPago.toLowerCase().contains("convenio");
+                _tipoPago.toLowerCase().contains("corporativo") ||
+                _tipoPago.toLowerCase().contains("vale") ||
+                _tipoPago.toLowerCase().contains("convenio");
             if (esConvenio) {
               _currentStatus = TripStatus.PAGO_COMPLETADO;
             }
@@ -299,7 +316,7 @@ class _MapsScreenState extends State<MapsScreen> {
   }
 
   Future<void> _handlePaymentSubmit() async {
-    if (widget.reservaId == null) return;
+    if (_reservaId == null) return;
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -307,7 +324,7 @@ class _MapsScreenState extends State<MapsScreen> {
     );
 
     bool success = await ViajesService.registrarPagoAdicional(
-      reservaId: widget.reservaId!,
+      reservaId: _reservaId!,
       metodo: _selectedPaymentMethod,
       observacion: _observacionController.text,
       statusPago: 1,
@@ -327,11 +344,11 @@ class _MapsScreenState extends State<MapsScreen> {
     }
   }
 
-  // --- Lógica de Diálogo y Restricción de Anticipación (Máx. 5 min) ---
   Future<void> _showConfirmationDialog() async {
     String title = "";
     String content = "";
     bool blockAction = false;
+    final now = DateTime.now();
     switch (_currentStatus) {
       case TripStatus.EN_CAMINO:
         title = "Confirmar Llegada";
@@ -339,20 +356,17 @@ class _MapsScreenState extends State<MapsScreen> {
         break;
       case TripStatus.EN_PUNTO_ENCUENTRO:
         title = "Comenzar Viaje";
-        if (_isWaitingForScheduledTime && _scheduledTime != null) {
-          final diff = _scheduledTime!.difference(DateTime.now());
+        if (now.isBefore(_scheduledTime)) {
+          final diff = _scheduledTime.difference(now);
           if (diff.inMinutes > 5) {
-            // Bloqueado: Más de 5 minutos antes de la hora
             content =
-            "No puedes iniciar el viaje. La hora programada es en ${diff.inMinutes} minutos. El límite de anticipación es de 5 minutos.";
+                "No puedes iniciar el viaje. La hora programada es en ${diff.inMinutes} minutos. El límite de anticipación es de 5 minutos.";
             blockAction = true;
           } else {
-            // Advertencia: Menos de 5 minutos antes, se permite forzar
             content =
-            "Aún falta para la hora programada (Faltan ${diff.inMinutes} min). ¿Deseas iniciar el viaje de todos modos?";
+                "Aún falta para la hora programada (Faltan ${diff.inMinutes} min). ¿Deseas iniciar el viaje de todos modos?";
           }
         } else {
-          // Ya pasó la hora o no es programada
           content = "¿El pasajero subió al vehículo?";
         }
         break;
@@ -364,10 +378,10 @@ class _MapsScreenState extends State<MapsScreen> {
         return;
     }
 
-    return showDialog<void>(
+    showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (BuildContext context) {
+      builder: (context) {
         return AlertDialog(
           title: Text(title),
           content: Text(content),
@@ -384,9 +398,9 @@ class _MapsScreenState extends State<MapsScreen> {
               onPressed: blockAction
                   ? null
                   : () {
-                Navigator.of(context).pop();
-                _handleButtonAction();
-              },
+                      Navigator.of(context).pop();
+                      _handleButtonAction();
+                    },
               child: Text(blockAction ? 'Entendido' : 'Confirmar'),
             ),
           ],
@@ -395,18 +409,18 @@ class _MapsScreenState extends State<MapsScreen> {
     );
   }
 
-  // --- Construcción de Widgets (UI) ---
   @override
   Widget build(BuildContext context) {
     bool showingPaymentUI =
         _currentStatus == TripStatus.DESTINO_LLEGADO ||
-            _currentStatus == TripStatus.PAGO_COMPLETADO;
+        _currentStatus == TripStatus.PAGO_COMPLETADO;
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       body: Column(
         children: [
           const LogoHeader(titulo: 'Viaje en Curso', estiloLogin: false),
-          if (widget.viajeIniciado)
+          if (_tripActive)
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(
@@ -428,9 +442,117 @@ class _MapsScreenState extends State<MapsScreen> {
                       const SizedBox(height: 20),
                       _buildPaymentSection(),
                     ],
-                    // ⬇️⬇️⬇️ ESPACIO EXTRA PARA EL BOTTOM NAVIGATION ⬇️⬇️⬇️
                     const SizedBox(height: 80),
                   ],
+                ),
+              ),
+            )
+          else if (_hasOngoingTrip)
+            Expanded(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  child: Container(
+                    width: double.infinity,
+                    constraints: const BoxConstraints(maxWidth: 500),
+                    padding: const EdgeInsets.all(24.0),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.12),
+                          blurRadius: 12,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.directions_car_filled,
+                          size: 80,
+                          color: Colors.green.shade700,
+                        ),
+                        const SizedBox(height: 20),
+                        const Text(
+                          'Tienes un viaje en curso',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Continúa con el viaje que estaba activo',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[700],
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 24),
+                        // Resumen del viaje en curso
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[50],
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: Column(
+                            children: [
+                              _buildMiniAddressRow(
+                                Icons.my_location,
+                                Colors.green,
+                                "Origen",
+                                _direccionOrigen,
+                              ),
+                              const SizedBox(height: 12),
+                              _buildMiniAddressRow(
+                                Icons.location_on,
+                                Colors.red,
+                                "Destino",
+                                _direccionDestino,
+                              ),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 56,
+                          child: ElevatedButton.icon(
+                            icon: const Icon(Icons.play_arrow, size: 28),
+                            label: const Text(
+                              'CONTINUAR VIAJE',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green.shade700,
+                              foregroundColor: Colors.white,
+                              elevation: 4,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            onPressed: _resumeTrip,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             )
@@ -463,7 +585,7 @@ class _MapsScreenState extends State<MapsScreen> {
             Icons.my_location,
             Colors.green,
             "Origen",
-            widget.direccionOrigen ?? "---",
+            _direccionOrigen,
           ),
           const Padding(
             padding: EdgeInsets.only(left: 11),
@@ -479,7 +601,7 @@ class _MapsScreenState extends State<MapsScreen> {
             Icons.location_on,
             Colors.red,
             "Destino",
-            widget.direccionDestino ?? "---",
+            _direccionDestino,
           ),
         ],
       ),
@@ -487,11 +609,11 @@ class _MapsScreenState extends State<MapsScreen> {
   }
 
   Widget _buildAddressRow(
-      IconData icon,
-      Color color,
-      String label,
-      String text,
-      ) {
+    IconData icon,
+    Color color,
+    String label,
+    String text,
+  ) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -526,7 +648,46 @@ class _MapsScreenState extends State<MapsScreen> {
     );
   }
 
-  // Lógica visual del temporizador, incluye estado de 'ANTICIPACIÓN EXCESIVA'
+  Widget _buildMiniAddressRow(
+    IconData icon,
+    Color color,
+    String label,
+    String text,
+  ) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: color, size: 20),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                text,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildDynamicTimer() {
     String label = "Estado";
     String timeValue = "--:--:--";
@@ -536,26 +697,22 @@ class _MapsScreenState extends State<MapsScreen> {
     switch (_currentStatus) {
       case TripStatus.EN_CAMINO:
         label = "EN CAMINO";
-        if (_scheduledTime != null) {
-          String hora =
-              "${_scheduledTime!.hour.toString().padLeft(2, '0')}:${_scheduledTime!.minute.toString().padLeft(2, '0')}";
-          subLabel = "Hora prog: $hora";
-        }
+        String hora =
+            "${_scheduledTime.hour.toString().padLeft(2, '0')}:${_scheduledTime.minute.toString().padLeft(2, '0')}";
+        subLabel = "Hora prog: $hora";
         bgColor = Colors.blue.shade50;
         fgColor = Colors.blue.shade800;
         break;
       case TripStatus.EN_PUNTO_ENCUENTRO:
-        if (_isWaitingForScheduledTime && _scheduledTime != null) {
-          final diff = _scheduledTime!.difference(DateTime.now());
+        if (_isWaitingForScheduledTime) {
+          final diff = _scheduledTime.difference(DateTime.now());
           if (diff.inMinutes > 5) {
-            // Estado de bloqueo por anticipación excesiva
             label = "ANTICIPACIÓN EXCESIVA";
             timeValue = "BLOQUEADO";
             subLabel = "Faltan ${diff.inMinutes} min (Máx 5 min)";
             bgColor = Colors.red.shade100;
             fgColor = Colors.red.shade900;
           } else {
-            // Estado de espera normal (menos de 5 minutos de anticipación)
             label = "ANTICIPADO";
             timeValue = "ESPERANDO";
             subLabel = "Faltan ${diff.inMinutes} min";
@@ -731,11 +888,10 @@ class _MapsScreenState extends State<MapsScreen> {
   Widget _buildPaymentSection() {
     bool esConvenio =
         _tipoPago.toLowerCase().contains("crédito") ||
-            _tipoPago.toLowerCase().contains("corporativo") ||
-            _tipoPago.toLowerCase().contains("vale") ||
-            _tipoPago.toLowerCase().contains("convenio");
+        _tipoPago.toLowerCase().contains("corporativo") ||
+        _tipoPago.toLowerCase().contains("vale") ||
+        _tipoPago.toLowerCase().contains("convenio");
 
-    // UI para Pago Completado / Viaje Finalizado (Convenio)
     if (_currentStatus == TripStatus.PAGO_COMPLETADO) {
       return Container(
         padding: const EdgeInsets.all(16),
@@ -773,7 +929,7 @@ class _MapsScreenState extends State<MapsScreen> {
                   MaterialPageRoute(
                     builder: (context) => const MainLayoutScreen(),
                   ),
-                      (route) => false,
+                  (route) => false,
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFFFD60A),
@@ -791,7 +947,6 @@ class _MapsScreenState extends State<MapsScreen> {
       );
     }
 
-    // UI para Registrar Cobro
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -851,10 +1006,10 @@ class _MapsScreenState extends State<MapsScreen> {
             items: _paymentMethods
                 .map(
                   (m) => DropdownMenuItem(
-                value: m,
-                child: Text(m, style: const TextStyle(fontSize: 14)),
-              ),
-            )
+                    value: m,
+                    child: Text(m, style: const TextStyle(fontSize: 14)),
+                  ),
+                )
                 .toList(),
             onChanged: (v) => setState(() => _selectedPaymentMethod = v!),
           ),

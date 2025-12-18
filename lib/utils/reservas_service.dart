@@ -6,9 +6,9 @@ class ReservasService {
   static const String BASE_URL = 'http://servidorcorman.dyndns.org:7019/api';
 
   static Future<Map<String, dynamic>?> _performPost(
-      String endpoint, {
-        int? reservaId,
-      }) async {
+    String endpoint, {
+    int? reservaId,
+  }) async {
     final token = await SessionManager.getToken();
     final idUser = await SessionManager.getUserId();
 
@@ -28,6 +28,10 @@ class ReservasService {
           'Content-Type': 'application/json',
         },
         body: jsonEncode(body),
+      );
+
+      print(
+        "Respuesta API para $endpoint: ${response.statusCode} - ${response.body}",
       );
 
       if (response.statusCode == 200) {
@@ -69,8 +73,8 @@ class ReservasService {
   }
 
   static Future<Map<String, dynamic>?> fetchReservaDetalle(
-      int reservaId,
-      ) async {
+    int reservaId,
+  ) async {
     final token = await SessionManager.getToken();
     final idUser = await SessionManager.getUserId();
 
@@ -88,6 +92,10 @@ class ReservasService {
           'Authorization': 'Bearer $token',
         },
         body: jsonEncode({"id_user": idUser}),
+      );
+
+      print(
+        "Respuesta API para reservas_detalle/$reservaId: ${response.statusCode} - ${response.body}",
       );
 
       if (response.statusCode == 200) {
@@ -120,11 +128,9 @@ class ReservasService {
         jsonData['success'] == true &&
         jsonData['reservas_historial'] != null &&
         jsonData['reservas_historial']['data'] is List) {
-
       return List<Map<String, dynamic>>.from(
         jsonData['reservas_historial']['data'],
       );
-
     } else {
       return [];
     }

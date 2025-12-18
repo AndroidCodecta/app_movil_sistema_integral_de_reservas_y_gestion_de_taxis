@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '/utils/reservas_service.dart';
 import '../widgets/header.dart';
-import '../widgets/bottom_navigation.dart';
 import '/utils/viajes_service.dart';
+import '../widgets/bottom_navigation.dart';
 
 class ReservasDetalleTipoPago {
   final String tipoPago;
@@ -107,6 +107,7 @@ class _ReservaDetalleCompletoScreenState
   ReservaDetalleModel? _reservaDetalle;
   bool _isLoading = true;
   String? _errorMessage;
+  bool _isTripInProgress = false;
 
   @override
   void initState() {
@@ -125,7 +126,7 @@ class _ReservaDetalleCompletoScreenState
     if (data != null && mounted) {
       try {
         final ReservaDetalleModel reservaCompleta =
-        ReservaDetalleModel.fromJson(data);
+            ReservaDetalleModel.fromJson(data);
         setState(() {
           _reservaDetalle = reservaCompleta;
         });
@@ -138,8 +139,19 @@ class _ReservaDetalleCompletoScreenState
     } else if (mounted) {
       setState(() {
         _errorMessage =
-        "No se pudo cargar el detalle de la reserva ID: ${widget.reservaId}.";
+            "No se pudo cargar el detalle de la reserva ID: ${widget.reservaId}.";
       });
+    }
+
+    // Chequear si hay viaje en curso para esta reserva
+    final ongoingData = await ViajesService.getReservaEnCurso();
+    if (ongoingData != null && ongoingData.containsKey("seguimiento")) {
+      final ongoingReservaId = ongoingData["seguimiento"]["reserva_id"];
+      if (ongoingReservaId == widget.reservaId) {
+        setState(() {
+          _isTripInProgress = true;
+        });
+      }
     }
 
     if (mounted) {
@@ -253,7 +265,6 @@ class _ReservaDetalleCompletoScreenState
                     children: [
                       _buildInfoRow('Tipo de Pago:', tipoPago.tipoPago),
                       _buildInfoRow('Monto:', 'S/ ${tipoPago.monto}'),
-                      // _buildInfoRow('Método:', tipoPago.metodoPago),
                     ],
                   )
                 else
@@ -296,149 +307,136 @@ class _ReservaDetalleCompletoScreenState
   }
 
   // Función auxiliar para mostrar un SnackBar de error
-  void _showErrorSnackbar(BuildContext context, String message) {
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), backgroundColor: Colors.red),
-      );
-    }
+  void _showErrorSnackbar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
   }
 
   Widget _buildActionButton(BuildContext context) {
-    return ElevatedButton.icon(
-      onPressed: () async {
-        if (_reservaDetalle == null) return;
-        final reserva = _reservaDetalle!;
-
-        // 1. CONSTRUIR DateTime PROGRAMADO
-        final String fechaHoraStr =
-            "${reserva.fechaReserva} ${reserva.horaRecogida}";
-        DateTime fechaHoraProgramada;
-        try {
-          // Intentamos parsear la fecha y hora de la reserva
-          // (Ej: "2025-12-15 14:00")
-          fechaHoraProgramada = DateTime.parse(fechaHoraStr);
-        } catch (e) {
-          debugPrint('Error al parsear fechaHoraProgramada: $e');
-          _showErrorSnackbar(
+    if (_isTripInProgress) {
+      // Botón para ver viaje en curso
+      return ElevatedButton.icon(
+        onPressed: () {
+          // Navegar directamente al mapa, donde cargará el ongoing trip
+          Navigator.pushAndRemoveUntil(
             context,
-            'Error en el formato de fecha/hora de la reserva. (DEBUG)',
+            MaterialPageRoute(
+              builder: (context) => MainLayoutScreen(initialIndex: 3),
+            ),
+            (route) => false,
           );
-          return;
-        }
-
-        // 2. OBTENER DateTime ACTUAL y fechas sin hora
-        final DateTime now = DateTime.now();
-        final DateTime today = DateTime(now.year, now.month, now.day);
-        final DateTime reservaDate = DateTime(
-          fechaHoraProgramada.year,
-          fechaHoraProgramada.month,
-          fechaHoraProgramada.day,
-        );
-
-        // --- 3. APLICAR CONDICIONES DE VALIDACIÓN ---
-        // Condición 1: No puedes iniciar una reserva que no sea de hoy.
-        if (reservaDate.isBefore(today) || reservaDate.isAfter(today)) {
-          _showErrorSnackbar(
-            context,
-            'Solo puedes iniciar reservas programadas para hoy.',
-          );
-          return;
-        }
-
-        // Condición 3: No puedes iniciar el viaje si el tiempo acordado excede 3 horas antes.
-        // Calculamos 3 horas antes de la hora programada.
-        final DateTime limiteAnticipacion = fechaHoraProgramada.subtract(
-          const Duration(hours: 3),
-        );
-
-        // Si la hora actual (now) es anterior a 3 horas antes de la hora programada.
-        if (now.isBefore(limiteAnticipacion)) {
-          _showErrorSnackbar(
-            context,
-            'Solo puedes iniciar la reserva hasta 3 horas antes de la hora acordada.',
-          );
-          return;
-        }
-
-        // Condición 2: No puedes iniciar una reserva si el tiempo acordado ya pasó (venció).
-        // Si la hora actual (now) es posterior a la hora programada.
-        if (now.isAfter(fechaHoraProgramada)) {
-          _showErrorSnackbar(
-            context,
-            'No puedes iniciar esta reserva debido a que venció.',
-          );
-          return;
-        }
-
-        // --- Si todas las validaciones pasan, procedemos con el inicio del viaje ---
-        // 4. Extraer datos para el viaje
-        final int idReserva = reserva.id;
-        final monto = reserva.detallePago?.monto;
-        final tipo = reserva.detallePago?.tipoPago;
-        final dirOrigen = reserva.direccionEncuentro;
-        final dirDestino = reserva.direccionDestino;
-        String fechaHoraProgramadaStr = fechaHoraStr; // Ya está construido
-
-        // Muestra loading
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => const Center(
-            child: CircularProgressIndicator(color: Color(0xFFFFD60A)),
+        },
+        icon: const Icon(Icons.map, size: 28),
+        label: const Text(
+          'Ver Viaje en Curso',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.green.shade700,
+          foregroundColor: Colors.white,
+          minimumSize: const Size(double.infinity, 55),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
           ),
-        );
+          elevation: 5,
+        ),
+      );
+    } else {
+      // Botón para iniciar viaje (lógica original)
+      return ElevatedButton.icon(
+        onPressed: () async {
+          if (_reservaDetalle == null) return;
+          final reserva = _reservaDetalle!;
 
-        // Llamar al servicio para iniciar el viaje
-        final bool exito = await ViajesService.iniciarViaje(
-          idReserva,
-          "00:00:00",
-        );
+          // Construir fecha/hora programada correctamente
+          final String fechaHoraStr =
+              "${reserva.fechaReserva} ${reserva.horaRecogida}:00";
+          DateTime fechaHoraProgramada;
+          try {
+            fechaHoraProgramada = DateTime.parse(fechaHoraStr);
+          } catch (e) {
+            debugPrint('Error parseando fecha/hora: $e');
+            _showErrorSnackbar('Error en formato de fecha/hora.');
+            return;
+          }
 
-        if (context.mounted) {
-          Navigator.pop(context); // Oculta loading
-        }
+          final DateTime now = DateTime.now();
+          final DateTime today = DateTime(now.year, now.month, now.day);
+          final DateTime reservaDate = DateTime(
+            fechaHoraProgramada.year,
+            fechaHoraProgramada.month,
+            fechaHoraProgramada.day,
+          );
 
-        if (exito) {
-          if (!context.mounted) return;
+          // Validaciones
+          if (reservaDate != today) {
+            _showErrorSnackbar('Solo puedes iniciar reservas de hoy.');
+            return;
+          }
 
-          // ✅✅✅ CAMBIO CLAVE: Navegar al MainLayoutScreen con initialIndex = 3 (Mapa)
-          // y pasar los parámetros del viaje
+          final DateTime limiteAnticipacion = fechaHoraProgramada.subtract(
+            const Duration(hours: 3),
+          );
+          if (now.isBefore(limiteAnticipacion)) {
+            _showErrorSnackbar('Solo puedes iniciar hasta 3 horas antes.');
+            return;
+          }
+
+          if (now.isAfter(fechaHoraProgramada)) {
+            _showErrorSnackbar('La reserva ya venció.');
+            return;
+          }
+
+          // Mostrar loading
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => const Center(
+              child: CircularProgressIndicator(color: Color(0xFFFFD60A)),
+            ),
+          );
+
+          // NO llamar confirmarLlegada aquí - el chofer lo hará manualmente en el mapa
+
+          if (mounted) Navigator.pop(context); // cerrar loading
+
+          // === Navegar al mapa con viaje iniciado en EN_CAMINO ===
+          if (!mounted) return;
+
           Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(
               builder: (context) => MainLayoutScreen(
-                initialIndex: 3, // ← Index 3 = Mapa
+                initialIndex: 3, // Mapa
                 viajeIniciado: true,
-                reservaId: idReserva,
-                montoViaje: monto,
-                tipoPago: tipo,
-                // Nota: Estos parámetros necesitan ser agregados a MainLayoutScreen
-                // Para pasarlos correctamente al MapsScreen
+                reservaId: reserva.id,
+                montoViaje: reserva.detallePago?.monto,
+                tipoPago: reserva.detallePago?.tipoPago,
+                direccionOrigen: reserva.direccionEncuentro,
+                direccionDestino: reserva.direccionDestino,
+                fechaHoraProgramadaStr: fechaHoraStr,
               ),
             ),
-                (route) => false,
+            (route) => false,
           );
-        } else {
-          _showErrorSnackbar(
-            context,
-            'Error al iniciar el viaje. Intenta nuevamente.',
-          );
-        }
-      },
-      icon: const Icon(Icons.navigation_sharp, size: 28),
-      label: const Text(
-        'Iniciar Viaje',
-        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-      ),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: const Color.fromARGB(255, 0, 0, 0),
-        foregroundColor: Colors.white,
-        minimumSize: const Size(double.infinity, 55),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        elevation: 5,
-      ),
-    );
+        },
+        icon: const Icon(Icons.navigation_sharp, size: 28),
+        label: const Text(
+          'Iniciar Viaje',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color.fromARGB(255, 0, 0, 0),
+          foregroundColor: Colors.white,
+          minimumSize: const Size(double.infinity, 55),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          elevation: 5,
+        ),
+      );
+    }
   }
 
   @override
@@ -451,38 +449,38 @@ class _ReservaDetalleCompletoScreenState
           Expanded(
             child: _isLoading
                 ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFFFFD60A)),
-            )
+                    child: CircularProgressIndicator(color: Color(0xFFFFD60A)),
+                  )
                 : _errorMessage != null
                 ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(_errorMessage!),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _fetchDetail,
-                    child: const Text('Reintentar Carga'),
-                  ),
-                ],
-              ),
-            )
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(_errorMessage!),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: _fetchDetail,
+                          child: const Text('Reintentar Carga'),
+                        ),
+                      ],
+                    ),
+                  )
                 : RefreshIndicator(
-              onRefresh: _fetchDetail,
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (_reservaDetalle != null)
-                      _buildDetailContainer(_reservaDetalle!),
-                    const SizedBox(height: 20),
-                    _buildActionButton(context),
-                  ],
-                ),
-              ),
-            ),
+                    onRefresh: _fetchDetail,
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (_reservaDetalle != null)
+                            _buildDetailContainer(_reservaDetalle!),
+                          const SizedBox(height: 20),
+                          _buildActionButton(context),
+                        ],
+                      ),
+                    ),
+                  ),
           ),
         ],
       ),

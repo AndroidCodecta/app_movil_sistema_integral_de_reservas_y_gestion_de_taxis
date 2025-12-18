@@ -176,7 +176,7 @@ class SessionManager {
     final prefs = await SharedPreferences.getInstance();
     final index =
         prefs.getInt('trip_current_phase') ??
-            TripStatus.ASSIGNED_TO_DRIVER.index;
+        TripStatus.ASSIGNED_TO_DRIVER.index;
     return TripStatus.values[index.clamp(0, TripStatus.values.length - 1)];
   }
 
@@ -200,7 +200,7 @@ class SessionManager {
     final prefs = await SharedPreferences.getInstance();
     final currentIndex =
         prefs.getInt('trip_current_phase') ??
-            TripStatus.ASSIGNED_TO_DRIVER.index;
+        TripStatus.ASSIGNED_TO_DRIVER.index;
 
     if (newStatus.index < currentIndex) return;
 
@@ -268,5 +268,64 @@ class SessionManager {
     if (started == null) return Duration.zero;
 
     return (finished ?? DateTime.now()).difference(started);
+  }
+
+  // NUEVOS MÉTODOS PARA PERSISTENCIA DEL VIAJE EN CURSO
+  static Future<void> saveCurrentTrip({
+    required int reservaId,
+    required TripStatus status,
+    required String montoViaje,
+    required String tipoPago,
+    required String direccionOrigen,
+    required String direccionDestino,
+    required String fechaHoraProgramadaStr,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('has_current_trip', true);
+    await prefs.setInt('reserva_id', reservaId);
+    await prefs.setInt('trip_status_index', status.index);
+    await prefs.setString('monto_viaje', montoViaje);
+    await prefs.setString('tipo_pago', tipoPago);
+    await prefs.setString('direccion_origen', direccionOrigen);
+    await prefs.setString('direccion_destino', direccionDestino);
+    await prefs.setString('fecha_hora_programada', fechaHoraProgramadaStr);
+  }
+
+  static Future<Map<String, dynamic>?> getCurrentTrip() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool('has_current_trip') != true) return null;
+
+    final reservaId = prefs.getInt('reserva_id');
+    final statusIndex = prefs.getInt('trip_status_index');
+    final montoViaje = prefs.getString('monto_viaje');
+    final tipoPago = prefs.getString('tipo_pago');
+    final direccionOrigen = prefs.getString('direccion_origen');
+    final direccionDestino = prefs.getString('direccion_destino');
+    final fechaHoraProgramadaStr = prefs.getString('fecha_hora_programada');
+
+    if (reservaId == null || statusIndex == null) return null;
+
+    return {
+      'reservaId': reservaId,
+      'status': TripStatus.values[statusIndex],
+      'montoViaje': montoViaje ?? '0.00',
+      'tipoPago': tipoPago ?? 'Efectivo',
+      'direccionOrigen': direccionOrigen ?? '---',
+      'direccionDestino': direccionDestino ?? '---',
+      'fechaHoraProgramadaStr':
+          fechaHoraProgramadaStr ?? DateTime.now().toIso8601String(),
+    };
+  }
+
+  static Future<void> clearCurrentTrip() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('has_current_trip');
+    await prefs.remove('reserva_id');
+    await prefs.remove('trip_status_index');
+    await prefs.remove('monto_viaje');
+    await prefs.remove('tipo_pago');
+    await prefs.remove('direccion_origen');
+    await prefs.remove('direccion_destino');
+    await prefs.remove('fecha_hora_programada');
   }
 }

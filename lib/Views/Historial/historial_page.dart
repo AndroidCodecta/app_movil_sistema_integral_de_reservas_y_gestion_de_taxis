@@ -25,7 +25,7 @@ class ReservaHistorial {
   factory ReservaHistorial.fromMap(Map<String, dynamic> map) {
     String nombreCliente = 'Usuario Desconocido';
     final Map<String, dynamic>? clienteData =
-    map['cliente'] as Map<String, dynamic>?;
+        map['cliente'] as Map<String, dynamic>?;
 
     if (clienteData != null) {
       final String nombres = clienteData['nombres']?.toString() ?? '';
@@ -56,7 +56,7 @@ class ReservaHistorial {
       fechaReserva: fecha,
       horaRecogida: hora,
       direccionEncuentro:
-      map['d_encuentro']?.toString() ??
+          map['d_encuentro']?.toString() ??
           'Dirección de encuentro no disponible',
       dDestino: map['d_destino']?.toString() ?? 'Destino no disponible',
     );
@@ -90,7 +90,7 @@ class _HistorialPageState extends State<HistorialPage> {
 
     try {
       final List<Map<String, dynamic>> rawData =
-      await ReservasService.fetchReservasHistorial();
+          await ReservasService.fetchReservasHistorial();
       final List<ReservaHistorial> historial = rawData
           .map((map) => ReservaHistorial.fromMap(map))
           .toList();
@@ -139,40 +139,40 @@ class _HistorialPageState extends State<HistorialPage> {
           Expanded(
             child: _isLoading
                 ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFFFFD60A)),
-            )
+                    child: CircularProgressIndicator(color: Color(0xFFFFD60A)),
+                  )
                 : _errorMessage != null
                 ? Center(
-              child: Text(
-                'Error de Conexión: $_errorMessage',
-                textAlign: TextAlign.center,
-              ),
-            )
+                    child: Text(
+                      'Error de Conexión: $_errorMessage',
+                      textAlign: TextAlign.center,
+                    ),
+                  )
                 : RefreshIndicator(
-              onRefresh: _loadHistorial,
-              child: _finishedReservations.isEmpty
-                  ? ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                children: [
-                  SizedBox(
-                    height: MediaQuery.of(context).size.height / 3,
+                    onRefresh: _loadHistorial,
+                    child: _finishedReservations.isEmpty
+                        ? ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            children: [
+                              SizedBox(
+                                height: MediaQuery.of(context).size.height / 3,
+                              ),
+                              _buildEmptyState(),
+                            ],
+                          )
+                        : ListView.builder(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.all(16),
+                            itemCount: _finishedReservations.length,
+                            itemBuilder: (context, index) {
+                              final reserva = _finishedReservations[index];
+                              return HistorialCard(
+                                reserva: reserva,
+                                onTap: () => _goToDetails(reserva.id),
+                              );
+                            },
+                          ),
                   ),
-                  _buildEmptyState(),
-                ],
-              )
-                  : ListView.builder(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(16),
-                itemCount: _finishedReservations.length,
-                itemBuilder: (context, index) {
-                  final reserva = _finishedReservations[index];
-                  return HistorialCard(
-                    reserva: reserva,
-                    onTap: () => _goToDetails(reserva.id),
-                  );
-                },
-              ),
-            ),
           ),
         ],
       ),
@@ -258,10 +258,7 @@ class HistorialCard extends StatelessWidget {
                     reserva.direccionEncuentro,
                   ),
                   const SizedBox(height: 8),
-                  _buildInfoRow(
-                    'Dirección de encuentro:',
-                    reserva.dDestino,
-                  ),
+                  _buildInfoRow('Dirección de encuentro:', reserva.dDestino),
                   const SizedBox(height: 12),
                   Align(
                     alignment: Alignment.centerRight,

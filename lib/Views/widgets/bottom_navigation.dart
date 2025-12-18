@@ -5,12 +5,14 @@ import '../Reservas/reservas_page.dart';
 import '../Solicitudes/solicitudes_page.dart';
 
 class MainLayoutScreen extends StatefulWidget {
-  // Permitir inicializar con un índice específico
   final int initialIndex;
   final bool? viajeIniciado;
   final int? reservaId;
   final String? montoViaje;
   final String? tipoPago;
+  final String? direccionOrigen;
+  final String? direccionDestino;
+  final String? fechaHoraProgramadaStr;
 
   const MainLayoutScreen({
     super.key,
@@ -19,6 +21,9 @@ class MainLayoutScreen extends StatefulWidget {
     this.reservaId,
     this.montoViaje,
     this.tipoPago,
+    this.direccionOrigen,
+    this.direccionDestino,
+    this.fechaHoraProgramadaStr,
   });
 
   @override
@@ -31,45 +36,34 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
   @override
   void initState() {
     super.initState();
-    // Inicializar con el índice recibido
     _currentIndex = widget.initialIndex;
   }
 
   @override
   Widget build(BuildContext context) {
-    // Crear lista de pantallas dinámicamente
     final List<Widget> _screens = [
-      // Index 0: Home
       const HomeScreen(reservas: []),
-      // Index 1: Reservas
       const ReservasScreen(),
-      // Index 2: Solicitudes
       const SolicitudesPage(),
-      // Index 3: Mapa - AHORA PUEDE RECIBIR PARÁMETROS
       MapsScreen(
         viajeIniciado: widget.viajeIniciado ?? false,
         reservaId: widget.reservaId,
         montoViaje: widget.montoViaje,
         tipoPago: widget.tipoPago,
-        // Estos parámetros se obtienen del viaje iniciado
-        direccionOrigen: widget.viajeIniciado == true
-            ? "Dirección guardada del viaje"
-            : null,
-        direccionDestino: widget.viajeIniciado == true
-            ? "Destino guardado del viaje"
-            : null,
+        direccionOrigen: widget.direccionOrigen,
+        direccionDestino: widget.direccionDestino,
+        fechaHoraProgramadaStr: widget.fechaHoraProgramadaStr,
       ),
     ];
 
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
+      body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          border: Border(top: BorderSide(color: Colors.grey.shade300, width: 1)),
+          border: Border(
+            top: BorderSide(color: Colors.grey.shade300, width: 1),
+          ),
         ),
         child: BottomNavigationBar(
           type: BottomNavigationBarType.fixed,
@@ -81,34 +75,29 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
           showUnselectedLabels: false,
           currentIndex: _currentIndex,
           onTap: (index) {
-            // Solo cambiar de índice (mantiene el bottom nav visible)
             setState(() {
               _currentIndex = index;
             });
           },
           items: [
-            // ITEM 0: HOME
             BottomNavigationBarItem(
               icon: _currentIndex == 0
                   ? const Icon(Icons.home)
                   : const Icon(Icons.home_outlined),
               label: 'Home',
             ),
-            // ITEM 1: RESERVAS
             BottomNavigationBarItem(
               icon: _currentIndex == 1
                   ? const Icon(Icons.notifications)
                   : const Icon(Icons.notifications_none),
               label: 'Reservas',
             ),
-            // ITEM 2: SOLICITUDES
             BottomNavigationBarItem(
               icon: _currentIndex == 2
                   ? const Icon(Icons.person)
                   : const Icon(Icons.person_outline),
               label: 'Solicitudes',
             ),
-            // ITEM 3: MAPA
             BottomNavigationBarItem(
               icon: _currentIndex == 3
                   ? const Icon(Icons.map)
